@@ -138,3 +138,17 @@ def test_derive_all_is_idempotent(con, cfg):
     derive_all(con, cfg, now=NOW)
     derive_all(con, cfg, now=NOW)
     assert con.execute("SELECT COUNT(*) FROM pr_flow").fetchone()[0] == 1
+
+
+def test_review_before_ready_yields_no_time_to_first_review(con, cfg):
+    insert_pr(con, "platform/api#1", ready_at="2026-08-15T10:00:00Z", author="alex-rivera")
+    insert_review(con, "r1", "platform/api#1", "bo-chen", submitted_at="2026-08-14T10:00:00Z")
+    derive_all(con, cfg, now=NOW)
+    assert con.execute("SELECT time_to_first_review FROM pr_flow").fetchone()[0] is None
+
+
+def test_merge_before_first_commit_yields_no_time_to_merge(con, cfg):
+    insert_pr(con, "platform/api#1", first_commit_at="2026-08-16T10:00:00Z",
+              merged_at="2026-08-13T10:00:00Z", state="MERGED")
+    derive_all(con, cfg, now=NOW)
+    assert con.execute("SELECT time_to_merge FROM pr_flow").fetchone()[0] is None

@@ -63,6 +63,22 @@ def _category_for(name: str | None, mapping: dict[str, str]) -> str:
     return _CATEGORY_HINTS.get(name.casefold(), IN_PROGRESS)
 
 
+def _hours_if_ordered(start: str | None, end: str | None) -> float | None:
+    """`hours_between`, but None when `end` precedes `start`.
+
+    A later event timestamped before its predecessor (a backdated commit, a
+    review submitted before the PR was marked ready) is real GitHub data, not
+    a bug in this module. Rendering it as a negative duration would be a
+    confidently wrong number on the dashboard, which the spec forbids, so the
+    ordering check lives here at the call site rather than inside
+    `hours_between` itself — that helper is shared with Task 15's metrics and
+    must keep reporting whatever a caller feeds it.
+    """
+    if start and end and end < start:
+        return None
+    return hours_between(start, end)
+
+
 def _derive_pr_flow(con: sqlite3.Connection, cfg: Config, now: datetime) -> int:
     bots = {login.casefold() for login in cfg.github.bot_logins}
     now_iso = clock.iso(now)
@@ -85,13 +101,13 @@ def _derive_pr_flow(con: sqlite3.Connection, cfg: Config, now: datetime) -> int:
         start = pr["ready_at"] or pr["created_at"]
         review_wait = None
         if pr["state"] == "OPEN" and first_review is None and start:
-            review_wait = hours_between(start, now_iso)
+            review_wait = _hours_if_ordered(start, now_iso)
         rows.append(
             (
                 pr["id"],
-                hours_between(start, first_review),
-                hours_between(pr["first_commit_at"] or pr["created_at"], pr["merged_at"]),
-                hours_between(first_review, pr["merged_at"]),
+                _hours_if_ordered(start, first_review),
+                _hours_if_ordered(pr["first_commit_at"] or pr["created_at"], pr["merged_at"]),
+                _hours_if_ordered(first_review, pr["merged_at"]),
                 review_wait,
             )
         )
