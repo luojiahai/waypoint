@@ -51,6 +51,18 @@ def test_rest_review_requests_carry_the_pr_created_at_as_requested_at():
     }
 
 
+def test_rest_review_request_from_a_team_still_produces_a_record():
+    source = make_source(rest_handler, use_graphql=False)
+    requests = [r for r in source.fetch({}) if r.entity == "review_requests"]
+    team_requests = [r for r in requests if r.payload["login"].startswith("team:")]
+    assert team_requests[0].id == "platform/api#482:requested:team:platform-reviewers:2026-08-14T10:00:00Z"
+    assert team_requests[0].payload == {
+        "pull_request_id": "platform/api#482",
+        "login": "team:platform-reviewers",
+        "requested_at": "2026-08-14T10:00:00Z",
+    }
+
+
 def test_rest_pages_until_a_short_page():
     calls = []
 

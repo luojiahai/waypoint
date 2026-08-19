@@ -259,22 +259,35 @@ class GithubSource:
                 "github", "reviews", f"{pr_id}:review:{review['id']}", fetched_at, payload
             )
 
-        # REST exposes only currently-outstanding requests with no timestamp, so
-        # the PR's creation time is the best available approximation.
+        # REST exposes only currently-outstanding requests with no per-request
+        # timestamp, so the PR's creation time is the best available
+        # approximation — used uniformly for user and team requests alike, so
+        # both transports agree on requested_at for the same entity.
+        requested_at = node["created_at"]
         for reviewer in node.get("requested_reviewers", []) or []:
-            login = reviewer.get("login")
-            if not login:
-                continue
-            requested_at = node["created_at"]
-            self._status["review_requests"].count += 1
-            yield RawRecord(
-                "github",
-                "review_requests",
-                f"{pr_id}:requested:{login}:{requested_at}",
-                fetched_at,
-                {
-                    "pull_request_id": pr_id,
-                    "login": login,
-                    "requested_at": requested_at,
-                },
-            )
+            login = reviewer.get("login") or "unknown"
+            yield from self._rest_review_request(pr_id, login, requested_at, fetched_at)
+        # REST keeps team review requests in a separate array from user ones;
+        # a team request is never dropped (§9) — its login component mirrors
+        # the GraphQL path's `team:{slug}` (falling back to `unknown`) so the
+        # same underlying request produces the same id under either transport.
+        for team in node.get("requested_teams", []) or []:
+            slug = team.get("slug")
+            login = f"team:{slug}" if slug else "unknown"
+            yield from self._rest_review_request(pr_id, login, requested_at, fetched_at)
+
+    def _rest_review_request(
+        self, pr_id: str, login: str, requested_at: str, fetched_at: str
+    ) -> Iterator[RawRecord]:
+        self._status["review_requests"].count += 1
+        yield RawRecord(
+            "github",
+            "review_requests",
+            f"{pr_id}:requested:{login}:{requested_at}",
+            fetched_at,
+            {
+                "pull_request_id": pr_id,
+                "login": login,
+                "requested_at": requested_at,
+            },
+        )

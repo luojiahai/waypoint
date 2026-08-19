@@ -17,6 +17,7 @@
     "head": {"ref": "proj-97-checkout"},
     "user": {"login": "arivera"},
     "labels": [{"name": "needs-review"}],
-    "requested_reviewers": [{"login": "bchen"}]
+    "requested_reviewers": [{"login": "bchen"}],
+    "requested_teams": [{"slug": "platform-reviewers"}]
   }
 ]
