@@ -1,0 +1,78 @@
+{
+  "data": {
+    "repository": {
+      "nameWithOwner": "platform/api",
+      "url": "https://ghe.corp.example.com/platform/api",
+      "pullRequests": {
+        "pageInfo": {"hasNextPage": true, "endCursor": "CURSOR1"},
+        "nodes": [
+          {
+            "number": 482,
+            "title": "PROJ-97 checkout rework",
+            "url": "https://ghe.corp.example.com/platform/api/pull/482",
+            "state": "OPEN",
+            "isDraft": false,
+            "body": "Implements PROJ-97.",
+            "createdAt": "2026-08-14T10:00:00Z",
+            "updatedAt": "2026-08-18T12:00:00Z",
+            "mergedAt": null,
+            "closedAt": null,
+            "additions": 220,
+            "deletions": 40,
+            "changedFiles": 9,
+            "baseRefName": "main",
+            "headRefName": "proj-97-checkout",
+            "author": {"login": "arivera"},
+            "labels": {"nodes": [{"name": "needs-review"}]},
+            "commits": {"nodes": [{"commit": {"authoredDate": "2026-08-13T08:30:00Z"}}]},
+            "timelineItems": {
+              "nodes": [
+                {
+                  "__typename": "ReviewRequestedEvent",
+                  "createdAt": "2026-08-14T10:05:00Z",
+                  "requestedReviewer": {"login": "bchen"}
+                }
+              ]
+            },
+            "reviews": {"nodes": []}
+          },
+          {
+            "number": 481,
+            "title": "Bump deps",
+            "url": "https://ghe.corp.example.com/platform/api/pull/481",
+            "state": "MERGED",
+            "isDraft": false,
+            "body": "",
+            "createdAt": "2026-08-10T09:00:00Z",
+            "updatedAt": "2026-08-12T09:00:00Z",
+            "mergedAt": "2026-08-12T09:00:00Z",
+            "closedAt": "2026-08-12T09:00:00Z",
+            "additions": 4,
+            "deletions": 4,
+            "changedFiles": 1,
+            "baseRefName": "main",
+            "headRefName": "deps",
+            "author": {"login": "dependabot"},
+            "labels": {"nodes": []},
+            "commits": {"nodes": [{"commit": {"authoredDate": "2026-08-10T08:00:00Z"}}]},
+            "timelineItems": {
+              "nodes": [
+                {"__typename": "ReadyForReviewEvent", "createdAt": "2026-08-10T09:30:00Z"}
+              ]
+            },
+            "reviews": {
+              "nodes": [
+                {
+                  "id": "RV_1",
+                  "state": "APPROVED",
+                  "submittedAt": "2026-08-11T11:00:00Z",
+                  "author": {"login": "bchen"}
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

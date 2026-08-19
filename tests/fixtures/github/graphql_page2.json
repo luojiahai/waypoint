@@ -1,0 +1,35 @@
+{
+  "data": {
+    "repository": {
+      "nameWithOwner": "platform/api",
+      "url": "https://ghe.corp.example.com/platform/api",
+      "pullRequests": {
+        "pageInfo": {"hasNextPage": false, "endCursor": null},
+        "nodes": [
+          {
+            "number": 400,
+            "title": "Old work",
+            "url": "https://ghe.corp.example.com/platform/api/pull/400",
+            "state": "MERGED",
+            "isDraft": false,
+            "body": "",
+            "createdAt": "2026-05-01T09:00:00Z",
+            "updatedAt": "2026-05-02T09:00:00Z",
+            "mergedAt": "2026-05-02T09:00:00Z",
+            "closedAt": "2026-05-02T09:00:00Z",
+            "additions": 1,
+            "deletions": 1,
+            "changedFiles": 1,
+            "baseRefName": "main",
+            "headRefName": "old",
+            "author": {"login": "arivera"},
+            "labels": {"nodes": []},
+            "commits": {"nodes": [{"commit": {"authoredDate": "2026-05-01T08:00:00Z"}}]},
+            "timelineItems": {"nodes": []},
+            "reviews": {"nodes": []}
+          }
+        ]
+      }
+    }
+  }
+}
