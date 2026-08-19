@@ -1,0 +1,54 @@
+{
+  "startAt": 0,
+  "maxResults": 2,
+  "total": 2,
+  "issues": [
+    {
+      "key": "PROJ-97",
+      "self": "https://example.atlassian.net/rest/api/3/issue/10097",
+      "fields": {
+        "summary": "Checkout rework",
+        "issuetype": {"name": "Story"},
+        "status": {"id": "10002", "name": "In Progress", "statusCategory": {"key": "indeterminate", "name": "In Progress"}},
+        "assignee": {"accountId": "acct-alex", "displayName": "Alex Rivera"},
+        "reporter": {"accountId": "acct-bo", "displayName": "Bo Chen"},
+        "labels": ["checkout"],
+        "parent": {"key": "PROJ-10"},
+        "customfield_10016": 5,
+        "created": "2026-08-01T09:00:00.000+0000",
+        "updated": "2026-08-18T12:00:00.000+0000",
+        "resolutiondate": null
+      },
+      "changelog": {
+        "histories": [
+          {
+            "id": "1",
+            "created": "2026-08-04T09:00:00.000+0000",
+            "author": {"accountId": "acct-alex"},
+            "items": [
+              {"field": "status", "fromString": "To Do", "toString": "In Progress"}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "PROJ-98",
+      "self": "https://example.atlassian.net/rest/api/3/issue/10098",
+      "fields": {
+        "summary": "Fix totals rounding",
+        "issuetype": {"name": "Bug"},
+        "status": {"id": "10004", "name": "Done", "statusCategory": {"key": "done", "name": "Done"}},
+        "assignee": null,
+        "reporter": {"accountId": "acct-bo", "displayName": "Bo Chen"},
+        "labels": [],
+        "parent": null,
+        "customfield_10016": null,
+        "created": "2026-08-05T09:00:00.000+0000",
+        "updated": "2026-08-12T09:00:00.000+0000",
+        "resolutiondate": "2026-08-12T09:00:00.000+0000"
+      },
+      "changelog": {"histories": []}
+    }
+  ]
+}
