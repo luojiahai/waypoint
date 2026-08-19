@@ -13,6 +13,7 @@ functions compute live ages from timestamps and their own `now` argument.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -285,6 +286,108 @@ def _load_github(
     return counts
 
 
+def issue_key_pattern(project_key: str) -> re.Pattern:
+    """`PROJ-123`, word-bounded and case-sensitive.
+
+    This is the only linking mechanism (§10). Jira's development panel needs an
+    app connection that may not exist, so it is never queried.
+    """
+    return re.compile(rf"\b{re.escape(project_key)}-\d+\b")
+
+
+def _iso_or_none(value: str | None) -> str | None:
+    return clock.iso(clock.parse(value)) if value else None
+
+
+def _load_jira(
+    con: sqlite3.Connection, store: RawStore, cfg: Config, roster: Roster, seen: _Unattributed
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    points_field = cfg.jira.story_points_field
+
+    issue_rows = []
+    for record in latest_records(store, "jira", "issues"):
+        payload = record.payload
+        fields = payload.get("fields", {})
+        status = fields.get("status") or {}
+        category = (status.get("statusCategory") or {}).get("name")
+        assignee = (fields.get("assignee") or {}).get("accountId")
+        reporter = (fields.get("reporter") or {}).get("accountId")
+        assignee_id = roster.resolve_jira(assignee)
+        if assignee and assignee_id == UNATTRIBUTED:
+            seen.note("jira", assignee, "assignee")
+        reporter_id = roster.resolve_jira(reporter)
+        if reporter and reporter_id == UNATTRIBUTED:
+            seen.note("jira", reporter, "reporter")
+        labels = list(fields.get("labels") or [])
+        points = fields.get(points_field) if points_field else None
+        issue_rows.append(
+            (
+                payload["key"], fields.get("summary"),
+                (fields.get("issuetype") or {}).get("name"),
+                status.get("name"), status.get("id"), category,
+                assignee_id, reporter_id,
+                (fields.get("parent") or {}).get("key"),
+                json.dumps(labels),
+                float(points) if isinstance(points, (int, float)) else None,
+                1 if any(label.casefold() == "flagged" for label in labels) else 0,
+                _iso_or_none(fields.get("created")),
+                _iso_or_none(fields.get("updated")),
+                _iso_or_none(fields.get("resolutiondate")),
+                f"https://{cfg.jira.site}/browse/{payload['key']}",
+            )
+        )
+    con.executemany("INSERT INTO jira_issues VALUES (" + ",".join("?" * 16) + ")", issue_rows)
+    counts["jira_issues"] = len(issue_rows)
+
+    transition_rows = []
+    for record in latest_records(store, "jira", "changelogs"):
+        issue_key = record.id.removesuffix(":changelog")
+        for history in record.payload.get("histories") or []:
+            changed_at = _iso_or_none(history.get("created"))
+            author = (history.get("author") or {}).get("accountId")
+            author_id = roster.resolve_jira(author)
+            if author and author_id == UNATTRIBUTED:
+                seen.note("jira", author, "changelog_author")
+            for item in history.get("items") or []:
+                transition_rows.append(
+                    (
+                        issue_key, item.get("field"), item.get("fromString"),
+                        item.get("toString"), changed_at, author_id,
+                    )
+                )
+    con.executemany("INSERT INTO issue_transitions VALUES (?,?,?,?,?,?)", transition_rows)
+    counts["issue_transitions"] = len(transition_rows)
+
+    column_rows = []
+    for record in latest_records(store, "jira", "board_config"):
+        columns = (record.payload.get("columnConfig") or {}).get("columns") or []
+        for position, column in enumerate(columns):
+            status_ids = [str(s["id"]) for s in column.get("statuses") or []]
+            column_rows.append(
+                (
+                    position, column.get("name"), position,
+                    column.get("max"), json.dumps(status_ids),
+                )
+            )
+    con.executemany("INSERT INTO board_columns VALUES (?,?,?,?,?)", column_rows)
+    counts["board_columns"] = len(column_rows)
+    return counts
+
+
+def _link_issues_to_prs(con: sqlite3.Connection, cfg: Config) -> int:
+    pattern = issue_key_pattern(cfg.jira.project_key)
+    known = {row["key"] for row in con.execute("SELECT key FROM jira_issues")}
+    links: set[tuple[str, str]] = set()
+    for row in con.execute("SELECT id, title, body, head_ref FROM pull_requests"):
+        haystack = " ".join(filter(None, (row["title"], row["head_ref"], row["body"])))
+        for key in pattern.findall(haystack):
+            if key in known:
+                links.add((key, row["id"]))
+    con.executemany("INSERT OR REPLACE INTO issue_pr_links VALUES (?,?)", sorted(links))
+    return len(links)
+
+
 def build(root: Path, cfg: Config, *, now: datetime) -> BuildResult:
     """Rebuild the index from raw. Atomic: the live index is replaced or untouched."""
     root = Path(root)
@@ -304,6 +407,8 @@ def build(root: Path, cfg: Config, *, now: datetime) -> BuildResult:
         result.tables["people"] = _load_people(con, roster)
         result.tables["repos"] = _load_repos(con, cfg)
         result.tables.update(_load_github(con, store, roster, seen))
+        result.tables.update(_load_jira(con, store, cfg, roster, seen))
+        result.tables["issue_pr_links"] = _link_issues_to_prs(con, cfg)
         rows = seen.rows()
         con.executemany("INSERT INTO unattributed VALUES (?,?,?,?)", rows)
         result.unattributed = rows
