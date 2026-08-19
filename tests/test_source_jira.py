@@ -46,6 +46,16 @@ def test_emits_one_issue_record_per_issue():
     assert issues[0].payload["fields"]["summary"] == "Checkout rework"
 
 
+def test_issue_status_carries_the_board_column_id():
+    # board_configuration.json maps "In Progress" -> 10002 and "Done" -> 10004.
+    # If status.id were ever stripped, every board column would silently empty
+    # out downstream (Tasks 16/19/24/25 join on jira_issues.status_id).
+    source = make_source(default_handler)
+    issues = [r for r in source.fetch({}) if r.entity == "issues"]
+    assert issues[0].payload["fields"]["status"]["id"] == "10002"
+    assert issues[1].payload["fields"]["status"]["id"] == "10004"
+
+
 def test_changelog_is_split_into_its_own_record():
     source = make_source(default_handler)
     changelogs = [r for r in source.fetch({}) if r.entity == "changelogs"]
@@ -179,3 +189,28 @@ def test_uses_http_basic_auth_with_email_and_token():
 
 def test_board_type_reads_the_board_resource():
     assert make_source(default_handler).board_type() == "kanban"
+
+
+def test_untruncated_changelog_leaves_changelogs_status_ok():
+    source = make_source(default_handler)
+    list(source.fetch({}))
+    assert source.status()["changelogs"].status == "ok"
+
+
+def test_truncated_changelog_marks_changelogs_partial_with_issue_key():
+    def handler(request):
+        if "/search" in request.url.path:
+            return httpx.Response(200, json=fixture("search_truncated_changelog.json"))
+        return default_handler(request)
+
+    source = make_source(handler)
+    records = list(source.fetch({}))
+
+    # The truncated changelog is still yielded in full — activity is never dropped.
+    changelogs = [r for r in records if r.entity == "changelogs"]
+    assert [r.id for r in changelogs] == ["PROJ-99:changelog"]
+    assert len(changelogs[0].payload["histories"]) == 1
+
+    status = source.status()["changelogs"]
+    assert status.status == "partial"
+    assert "PROJ-99" in status.error
