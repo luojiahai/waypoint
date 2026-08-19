@@ -1,7 +1,9 @@
-.superpowers/
-.env
-.waypoint/
+.venv/
 __pycache__/
 *.pyc
-.venv/
+.env
+.waypoint/raw/
+.waypoint/index.db
+.waypoint/state/
+.superpowers/
 .pytest_cache/
