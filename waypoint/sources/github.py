@@ -197,5 +197,84 @@ class GithubSource:
         if updated_at and (self._watermark is None or updated_at > self._watermark):
             self._watermark = updated_at
 
+    def probe_graphql(self) -> bool:
+        """Does this GHE version answer the fields the connector needs?
+
+        `waypoint doctor` calls this so an unsupported instance produces a clear
+        message before a sync rather than a mid-backfill failure (§8).
+        """
+        owner, _, name = (self.cfg.repos[0] if self.cfg.repos else "x/y").partition("/")
+        try:
+            response = self.http.post(
+                self.cfg.base_url + GRAPHQL_PATH,
+                json={
+                    "query": PULL_REQUEST_QUERY,
+                    "variables": {"owner": owner, "name": name, "cursor": None, "size": 1},
+                },
+            )
+        except SourceError:
+            return False
+        return not response.json().get("errors")
+
     def _fetch_repo_rest(self, repo: str, watermark: str | None) -> Iterator[RawRecord]:
-        raise NotImplementedError  # filled in by Task 8
+        """REST fallback. Reviews are an extra request per PR — the N+1 GraphQL avoids."""
+        page = 1
+        while True:
+            response = self.http.get(
+                f"{self.cfg.base_url}{REST_PATH}/repos/{repo}/pulls",
+                params={
+                    "state": "all",
+                    "sort": "updated",
+                    "direction": "desc",
+                    "per_page": self.page_size,
+                    "page": page,
+                },
+            )
+            nodes = response.json()
+            if not nodes:
+                return
+            for node in nodes:
+                if watermark and node["updated_at"] < watermark:
+                    return
+                yield from self._rest_records_for(repo, node)
+            if len(nodes) < self.page_size:
+                return
+            page += 1
+
+    def _rest_records_for(self, repo: str, node: dict) -> Iterator[RawRecord]:
+        fetched_at = clock.iso(clock.now())
+        pr_id = f"{repo}#{node['number']}"
+        self._note_watermark(node.get("updated_at"))
+        self._status["pull_requests"].count += 1
+        yield RawRecord("github", "pull_requests", pr_id, fetched_at, node)
+
+        reviews = self.http.get(
+            f"{self.cfg.base_url}{REST_PATH}/repos/{repo}/pulls/{node['number']}/reviews"
+        ).json()
+        for review in reviews:
+            payload = dict(review)
+            payload["pull_request_id"] = pr_id
+            self._status["reviews"].count += 1
+            yield RawRecord(
+                "github", "reviews", f"{pr_id}:review:{review['id']}", fetched_at, payload
+            )
+
+        # REST exposes only currently-outstanding requests with no timestamp, so
+        # the PR's creation time is the best available approximation.
+        for reviewer in node.get("requested_reviewers", []) or []:
+            login = reviewer.get("login")
+            if not login:
+                continue
+            requested_at = node["created_at"]
+            self._status["review_requests"].count += 1
+            yield RawRecord(
+                "github",
+                "review_requests",
+                f"{pr_id}:requested:{login}:{requested_at}",
+                fetched_at,
+                {
+                    "pull_request_id": pr_id,
+                    "login": login,
+                    "requested_at": requested_at,
+                },
+            )

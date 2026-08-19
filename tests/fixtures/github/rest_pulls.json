@@ -1,0 +1,22 @@
+[
+  {
+    "number": 482,
+    "title": "PROJ-97 checkout rework",
+    "html_url": "https://ghe.corp.example.com/platform/api/pull/482",
+    "state": "open",
+    "draft": false,
+    "body": "Implements PROJ-97.",
+    "created_at": "2026-08-14T10:00:00Z",
+    "updated_at": "2026-08-18T12:00:00Z",
+    "merged_at": null,
+    "closed_at": null,
+    "additions": 220,
+    "deletions": 40,
+    "changed_files": 9,
+    "base": {"ref": "main"},
+    "head": {"ref": "proj-97-checkout"},
+    "user": {"login": "arivera"},
+    "labels": [{"name": "needs-review"}],
+    "requested_reviewers": [{"login": "bchen"}]
+  }
+]
