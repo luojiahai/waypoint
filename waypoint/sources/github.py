@@ -45,7 +45,7 @@ query($owner: String!, $name: String!, $cursor: String, $size: Int!) {
             ... on ReadyForReviewEvent { createdAt }
             ... on ReviewRequestedEvent {
               createdAt
-              requestedReviewer { ... on User { login } }
+              requestedReviewer { ... on User { login } ... on Team { slug } }
             }
           }
         }
@@ -172,9 +172,12 @@ class GithubSource:
             if event.get("__typename") != "ReviewRequestedEvent":
                 continue
             reviewer = event.get("requestedReviewer") or {}
-            login = reviewer.get("login")
-            if not login:
-                continue  # team review requests are not attributed to a person
+            if reviewer.get("login"):
+                login = reviewer["login"]
+            elif reviewer.get("slug"):
+                login = f"team:{reviewer['slug']}"
+            else:
+                login = "unknown"
             requested_at = event["createdAt"]
             payload = {
                 "pull_request_id": pr_id,

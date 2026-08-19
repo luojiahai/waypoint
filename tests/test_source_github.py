@@ -76,6 +76,28 @@ def test_review_requests_come_from_timeline_events_and_carry_requested_at():
     }
 
 
+def test_review_requested_from_a_team_still_produces_a_record():
+    page = fixture("graphql_page2.json")
+    node = page["data"]["repository"]["pullRequests"]["nodes"][0]
+    node["timelineItems"] = {
+        "nodes": [
+            {
+                "__typename": "ReviewRequestedEvent",
+                "createdAt": "2026-05-01T09:10:00Z",
+                "requestedReviewer": {"slug": "platform-reviewers"},
+            }
+        ]
+    }
+    source = make_source(paged_handler([page]))
+    requests = [r for r in source.fetch({}) if r.entity == "review_requests"]
+    assert requests[0].id == "platform/api#400:requested:team:platform-reviewers:2026-05-01T09:10:00Z"
+    assert requests[0].payload == {
+        "pull_request_id": "platform/api#400",
+        "login": "team:platform-reviewers",
+        "requested_at": "2026-05-01T09:10:00Z",
+    }
+
+
 def test_ready_for_review_event_is_preserved_in_the_pr_payload():
     source = make_source(paged_handler([fixture("graphql_page1.json"), fixture("graphql_page2.json")]))
     pr = next(r for r in source.fetch({}) if r.id == "platform/api#481")
