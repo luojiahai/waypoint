@@ -269,7 +269,7 @@ def _load_github(
         key = (pr_id, login)
         requested_at = payload.get("requested_at")
         existing = request_by_key.get(key)
-        if existing is not None and existing[1] != "unknown" and requested_at == "unknown":
+        if existing is not None and existing[2] != "unknown" and requested_at == "unknown":
             continue  # keep the existing row with the real timestamp
         request_by_key[key] = (pr_id, login, requested_at)
     request_rows = []
