@@ -2,8 +2,10 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 
 from waypoint.config import GithubConfig
+from waypoint.errors import SourceError
 from waypoint.sources.github import GithubSource
 from waypoint.sources.http import HttpClient
 
@@ -41,13 +43,18 @@ def test_rest_fallback_emits_the_same_record_ids():
     assert [r.id for r in records if r.entity == "reviews"] == ["platform/api#482:review:90001"]
 
 
-def test_rest_review_requests_carry_the_pr_created_at_as_requested_at():
+def test_rest_review_requests_do_not_fabricate_a_requested_at():
+    # REST exposes no per-request timestamp. Substituting the PR's created_at
+    # would invent a plausible-looking but wrong review-wait time, so the
+    # connector says "unknown" rather than guessing.
     source = make_source(rest_handler, use_graphql=False)
     requests = [r for r in source.fetch({}) if r.entity == "review_requests"]
-    assert requests[0].payload == {
+    user_request = next(r for r in requests if r.payload["login"] == "bchen")
+    assert user_request.id == "platform/api#482:requested:bchen:unknown"
+    assert user_request.payload == {
         "pull_request_id": "platform/api#482",
         "login": "bchen",
-        "requested_at": "2026-08-14T10:00:00Z",
+        "requested_at": "unknown",
     }
 
 
@@ -55,11 +62,11 @@ def test_rest_review_request_from_a_team_still_produces_a_record():
     source = make_source(rest_handler, use_graphql=False)
     requests = [r for r in source.fetch({}) if r.entity == "review_requests"]
     team_requests = [r for r in requests if r.payload["login"].startswith("team:")]
-    assert team_requests[0].id == "platform/api#482:requested:team:platform-reviewers:2026-08-14T10:00:00Z"
+    assert team_requests[0].id == "platform/api#482:requested:team:platform-reviewers:unknown"
     assert team_requests[0].payload == {
         "pull_request_id": "platform/api#482",
         "login": "team:platform-reviewers",
-        "requested_at": "2026-08-14T10:00:00Z",
+        "requested_at": "unknown",
     }
 
 
@@ -101,3 +108,13 @@ def test_probe_graphql_returns_false_on_a_field_error():
 def test_probe_graphql_returns_false_when_graphql_is_absent():
     source = make_source(lambda request: httpx.Response(404, text="not found"))
     assert source.probe_graphql() is False
+
+
+def test_probe_graphql_reraises_on_auth_failure_instead_of_returning_false():
+    # A 401 means "fix your token", not "this GHE instance lacks GraphQL" — the
+    # two must not collapse to the same False, or `waypoint doctor` would tell
+    # a user with a bad token to fall back to REST instead of fixing auth.
+    source = make_source(lambda request: httpx.Response(401, text="Bad credentials"))
+    with pytest.raises(SourceError) as excinfo:
+        source.probe_graphql()
+    assert excinfo.value.kind == "auth"

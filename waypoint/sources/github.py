@@ -212,7 +212,9 @@ class GithubSource:
                     "variables": {"owner": owner, "name": name, "cursor": None, "size": 1},
                 },
             )
-        except SourceError:
+        except SourceError as exc:
+            if exc.kind == "auth":
+                raise
             return False
         return not response.json().get("errors")
 
@@ -259,11 +261,12 @@ class GithubSource:
                 "github", "reviews", f"{pr_id}:review:{review['id']}", fetched_at, payload
             )
 
-        # REST exposes only currently-outstanding requests with no per-request
-        # timestamp, so the PR's creation time is the best available
-        # approximation — used uniformly for user and team requests alike, so
-        # both transports agree on requested_at for the same entity.
-        requested_at = node["created_at"]
+        # REST exposes no per-request timestamp at all — only who is currently
+        # outstanding, not when the request was made. Substituting the PR's
+        # creation time would invent a plausible-looking but wrong value (a
+        # PR opened in May with a review requested in August would silently
+        # report a three-month review wait). Say so explicitly instead.
+        requested_at = "unknown"
         for reviewer in node.get("requested_reviewers", []) or []:
             login = reviewer.get("login") or "unknown"
             yield from self._rest_review_request(pr_id, login, requested_at, fetched_at)
