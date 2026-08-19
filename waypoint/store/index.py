@@ -409,6 +409,10 @@ def build(root: Path, cfg: Config, *, now: datetime) -> BuildResult:
         result.tables.update(_load_github(con, store, roster, seen))
         result.tables.update(_load_jira(con, store, cfg, roster, seen))
         result.tables["issue_pr_links"] = _link_issues_to_prs(con, cfg)
+
+        from waypoint.store.derive import derive_all
+
+        result.tables.update(derive_all(con, cfg, now=now))
         rows = seen.rows()
         con.executemany("INSERT INTO unattributed VALUES (?,?,?,?)", rows)
         result.unattributed = rows
