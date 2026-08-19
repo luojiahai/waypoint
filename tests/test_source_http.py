@@ -116,3 +116,18 @@ def test_error_messages_never_echo_the_authorization_header():
     with pytest.raises(SourceError) as exc:
         client.get("/thing")
     assert "super-secret" not in exc.value.message
+
+
+def test_negative_retry_after_does_not_crash_and_records_a_non_negative_sleep():
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) < 2:
+            return httpx.Response(429, headers={"Retry-After": "-5"})
+        return httpx.Response(200, json={"ok": True})
+
+    client, slept = make_client(handler)
+    assert client.get("/thing").status_code == 200
+    assert slept == [0.0]
+    assert client.rate_limit.waited_seconds == 0.0

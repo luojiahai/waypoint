@@ -41,7 +41,7 @@ def classify(response: httpx.Response) -> SourceError:
     """Map a failing response onto an error a user can act on."""
     try:
         url = str(response.request.url)
-    except RuntimeError:  # pragma: no cover - no request attached to response
+    except RuntimeError:  # response.request raises when no request is attached
         url = ""
     body = _body_excerpt(response)
     status = response.status_code
@@ -90,7 +90,7 @@ def _retry_after_seconds(response: httpx.Response) -> float | None:
     if not value:
         return None
     try:
-        return float(value)
+        return max(0.0, float(value))
     except ValueError:
         parsed = email.utils.parsedate_to_datetime(value)
         if parsed is None:
