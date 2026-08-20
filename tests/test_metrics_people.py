@@ -165,3 +165,35 @@ def test_an_empty_other_bucket_is_omitted(con, cfg):
         work_mix=cfg.work_mix,
     )
     assert all(bucket.name != "other" for bucket in view.work_mix.buckets)
+
+
+def test_a_null_review_wait_renders_no_fabricated_zero_and_no_false_flag(con, cfg):
+    # review_wait_current goes NULL once any non-author, non-bot reviewer submits
+    # (derive.py), even though the tracked person still hasn't reviewed. The card
+    # must not print a fabricated "0d" for that unknown duration, and must not
+    # flag on it.
+    insert_pr(con, "platform/api#1", author="bo-chen", state="OPEN",
+              ready_at="2026-08-10T12:00:00Z")
+    insert_review_request(con, "platform/api#1", "alex-rivera", "2026-08-10T12:00:00Z")
+    con.execute("INSERT INTO pr_flow VALUES (?,?,?,?,?)",
+                ("platform/api#1", None, None, None, None))
+    cards = {c.name: c for c in people.roster_cards(con, Roster.from_config(cfg), now=NOW,
+                                                   thresholds=cfg.thresholds)}
+    card = cards["Alex Rivera"]
+    text = " ".join(line.text for line in card.lines)
+    assert "1 PR awaiting their review" in text
+    assert "0d" not in text
+    assert "—" in text
+    assert card.flagged is False
+
+
+def test_in_flight_item_with_no_flow_row_renders_honest_unknown_age(con, cfg):
+    # An issue already in progress before transition history began has no
+    # issue_flow row, so first_in_progress_at is NULL. The panel must render an
+    # honest unknown rather than a fabricated "0d".
+    insert_issue(con, "PROJ-9", assignee="alex-rivera", status_category="In Progress")
+    view = people.person_view(
+        con, Roster.from_config(cfg).by_id("alex-rivera"), now=NOW, since=SINCE,
+        work_mix=cfg.work_mix,
+    )
+    assert view.in_flight.items[0].age_text == "—"

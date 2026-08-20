@@ -144,7 +144,7 @@ def roster_cards(
             "SELECT MAX(f.review_wait_current) AS h FROM pr_review_requests r "
             "JOIN pr_flow f ON f.pr_id = r.pr_id WHERE r.requested_person_id = ?",
             (person.id,),
-        ).fetchone()["h"] or 0.0
+        ).fetchone()["h"]
         in_flight_count = con.execute(
             "SELECT COUNT(*) AS n FROM jira_issues WHERE assignee_person_id = ? "
             "AND status_category = ?",
@@ -156,29 +156,39 @@ def roster_cards(
             "WHERE i.assignee_person_id = ? AND i.status_category = ?",
             (person.id, IN_PROGRESS),
         ).fetchone()["stamp"]
-        age_days = days_between(oldest_age, now_iso) or 0.0
+        age_days = days_between(oldest_age, now_iso)
         streams = workstreams_touched(con, person.id, since=clock.parse("1970-01-01T00:00:00Z"),
                                       until=now)
         last = _last_activity(con, person.id)
         idle_days = days_between(last, now_iso)
 
-        wait_crossed = oldest_wait / 24 >= thresholds.pr_review_wait_days
-        age_crossed = age_days >= thresholds.issue_aging_days
+        wait_crossed = oldest_wait is not None and oldest_wait / 24 >= thresholds.pr_review_wait_days
+        age_crossed = age_days is not None and age_days >= thresholds.issue_aging_days
+
+        wait_clause = ""
+        if awaiting:
+            wait_clause = (
+                f" · oldest {oldest_wait / 24:.0f}d" if oldest_wait is not None else " · oldest —"
+            )
+        age_clause = ""
+        if in_flight_count:
+            age_clause = (
+                f" · oldest item {age_days:.0f}d" if age_days is not None else " · oldest item —"
+            )
 
         lines = [
             CardLine(
                 f"{_plural(open_prs, 'open PR')} · {_plural(in_flight_count, 'issue')} in flight",
             ),
             CardLine(
-                f"{_plural(awaiting, 'PR')} awaiting their review"
-                + (f" · oldest {oldest_wait / 24:.0f}d" if awaiting else ""),
+                f"{_plural(awaiting, 'PR')} awaiting their review" + wait_clause,
                 emphasis="med" if wait_crossed and awaiting else None,
             ),
             CardLine(
                 f"{_plural(streams, 'workstream')} touched · "
                 + ("no activity recorded" if idle_days is None
                    else f"last active {idle_days:.0f}d ago")
-                + (f" · oldest item {age_days:.0f}d" if in_flight_count else ""),
+                + age_clause,
                 emphasis="med" if age_crossed and in_flight_count else None,
             ),
         ]
@@ -230,10 +240,15 @@ def person_view(
         "ORDER BY f.first_in_progress_at",
         (person.id, IN_PROGRESS),
     ).fetchall()
+
+    def _in_flight_age_text(first_in_progress_at: str | None) -> str:
+        age = days_between(first_in_progress_at, high)
+        return f"{age:.0f}d" if age is not None else "—"
+
     in_flight_items = [
         PersonItem(
             row["key"], row["summary"] or "", row["status"] or "",
-            f"{days_between(row['first_in_progress_at'], high) or 0:.0f}d", row["url"] or "",
+            _in_flight_age_text(row["first_in_progress_at"]), row["url"] or "",
         )
         for row in in_flight_rows
     ]
@@ -259,9 +274,13 @@ def person_view(
         "WHERE r.requested_person_id = ? AND p.state = 'OPEN' AND v.id IS NULL ORDER BY p.id",
         (person.id,),
     ).fetchall()
+
+    def _owed_age_text(review_wait_current: float | None) -> str:
+        return f"{review_wait_current / 24:.0f}d" if review_wait_current is not None else "—"
+
     owed = [
         PersonItem(row["id"], row["title"] or "", "review requested",
-                   f"{(row['review_wait_current'] or 0) / 24:.0f}d", row["url"] or "")
+                   _owed_age_text(row["review_wait_current"]), row["url"] or "")
         for row in owed_rows
     ]
 
