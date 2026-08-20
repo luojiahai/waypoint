@@ -163,3 +163,42 @@ def test_rate_limit_state_is_recorded_from_sources_that_expose_it(project_dir: P
     progress = read_progress(project_dir / ".waypoint")
     assert progress.rate_limit["github"]["remaining"] == 412
     assert progress.rate_limit["github"]["waited_seconds"] == 7.0
+
+
+def test_a_malformed_progress_file_reads_as_a_failure_that_names_it(tmp_path: Path):
+    """`Progress(**json.loads(...))` turned a truncated write -- a file
+    Waypoint itself produced -- into a TypeError/JSONDecodeError out of every
+    page's dependency."""
+    path = tmp_path / "state" / "progress.json"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"state": "running", "step":')
+    progress = read_progress(tmp_path)
+    assert progress.state == "failed"
+    assert str(path) in progress.message
+    assert "press Sync" in progress.message
+
+
+def test_an_unknown_progress_key_is_caught_too(tmp_path: Path):
+    path = tmp_path / "state" / "progress.json"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"state": "idle", "from_a_future_version": true}')
+    assert read_progress(tmp_path).state == "failed"
+
+
+def test_progress_is_written_atomically_so_a_kill_cannot_truncate_it(tmp_path, monkeypatch):
+    """`ManifestStore.save` already renames a `.tmp` into place; a bare
+    `write_text` here left a truncated file that bricked the whole UI."""
+    from waypoint.sync import write_progress
+
+    renamed: list[str] = []
+    real_replace = Path.replace
+    monkeypatch.setattr(
+        Path, "replace",
+        lambda self, target: (renamed.append(self.name), real_replace(self, target))[1],
+    )
+
+    write_progress(tmp_path, Progress(state="running", step="fetch github"))
+
+    assert renamed == ["progress.json.tmp"]
+    assert not (tmp_path / "state" / "progress.json.tmp").exists()
+    assert read_progress(tmp_path).step == "fetch github"

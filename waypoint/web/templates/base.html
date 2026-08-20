@@ -23,6 +23,12 @@
     </button>
   </span>
 </header>
+{# A `state/` file Waypoint wrote that it can no longer read is still Waypoint's
+   problem to explain, on whichever page the user happens to be on (UI§9). #}
+{% if ctx.manifest.error %}
+{% import "components/ui.html" as _chrome_ui %}
+<div class="band">{{ _chrome_ui.standing_note(ctx.manifest.error) }}</div>
+{% endif %}
 {% block content %}{% endblock %}
 </body>
 </html>

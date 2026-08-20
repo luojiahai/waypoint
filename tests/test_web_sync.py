@@ -186,3 +186,33 @@ def test_an_unexpected_error_in_the_background_task_reports_failed_not_running(
     body = client.get("/sync/status").text
     assert "hx-get" not in body
     assert "abc123" not in body
+
+
+PAGES = ("/", "/delivery", "/people", "/sync")
+
+
+def test_a_corrupt_manifest_leaves_every_page_rendering_and_says_what_broke(project_dir: Path):
+    """UI§9: a missing or broken file must not 500 -- least of all the Sync
+    page, which is the one that would have explained it."""
+    client = seed(project_dir)
+    manifest_path = project_dir / ".waypoint" / "state" / "manifest.json"
+    manifest_path.write_text(manifest_path.read_text()[: len(manifest_path.read_text()) // 2])
+
+    for path in PAGES:
+        response = client.get(path)
+        assert response.status_code < 500, path
+        assert "manifest.json" in response.text, path
+        assert "press Sync" in response.text, path
+
+
+def test_a_malformed_progress_file_leaves_every_page_rendering(project_dir: Path):
+    client = seed(project_dir)
+    progress_path = project_dir / ".waypoint" / "state" / "progress.json"
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    progress_path.write_text('{"state": "running", "step":')
+
+    for path in PAGES:
+        response = client.get(path)
+        assert response.status_code < 500, path
+        assert "progress.json" in response.text, path
+        assert "press Sync" in response.text, path

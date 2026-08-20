@@ -106,3 +106,41 @@ def test_manifest_file_contains_no_token_like_values(tmp_path: Path):
     store.save(manifest)
     text = (tmp_path / "state" / "manifest.json").read_text().lower()
     assert "token" not in text
+
+
+def test_a_corrupt_manifest_loads_empty_and_names_the_file_and_the_fix(tmp_path: Path):
+    """UI§9: a broken file must not 500 the app. An empty manifest degrades
+    every panel to FAILED, which is honest -- but the user still has to be
+    told which file to delete."""
+    store = ManifestStore(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text('{"entities": {"github/pull_requests": {"key"')
+
+    manifest = store.load()
+    assert manifest.entities == {}
+    assert manifest.runs == []
+    assert str(store.path) in manifest.error
+    assert "press Sync" in manifest.error
+
+
+def test_a_manifest_with_an_unknown_entity_key_is_caught_too(tmp_path: Path):
+    """Valid JSON, wrong shape: `EntityState(**state)` raises TypeError, not
+    JSONDecodeError, so guarding only the parse would still 500."""
+    store = ManifestStore(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(
+        '{"entities": {"github/pull_requests": {"key": "github/pull_requests", '
+        '"status": "ok", "from_a_future_version": 1}}, "runs": []}'
+    )
+    manifest = store.load()
+    assert manifest.entities == {}
+    assert "from_a_future_version" in manifest.error or "TypeError" in manifest.error
+
+
+def test_a_readable_manifest_carries_no_error(tmp_path: Path):
+    store = ManifestStore(tmp_path)
+    manifest = store.load()
+    manifest.record("github", {"pull_requests": EntityStatus("pull_requests", "ok", 1)},
+                    run_id="r1", at="2026-08-19T09:12:03Z")
+    store.save(manifest)
+    assert ManifestStore(tmp_path).load().error is None

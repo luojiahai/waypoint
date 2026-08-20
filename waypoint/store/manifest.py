@@ -42,6 +42,11 @@ class RunRecord:
 class Manifest:
     entities: dict[str, EntityState] = field(default_factory=dict)
     runs: list[RunRecord] = field(default_factory=list)
+    #: Set when `state/manifest.json` could not be read. An empty manifest is
+    #: the safe default -- every panel degrades to FAILED, which is honest --
+    #: but the user still has to be told which file is broken and what to do,
+    #: so the chrome renders this on every page (UI§9).
+    error: str | None = None
 
     def record(
         self, source: str, statuses: dict[str, EntityStatus], run_id: str, at: str
@@ -111,15 +116,34 @@ class ManifestStore:
         self.path = self.root / "state" / "manifest.json"
 
     def load(self) -> Manifest:
+        """Read the manifest, or return an empty one that says what went wrong.
+
+        A truncated or hand-edited `manifest.json` used to raise out of every
+        page's dependency -- including the Sync page that would have explained
+        it -- and UI§9 forbids a broken file 500ing the app. An unknown or
+        missing key is a `TypeError` from the dataclass constructor, not just a
+        `JSONDecodeError`, so both are caught here.
+        """
         if not self.path.exists():
             return Manifest()
-        data = json.loads(self.path.read_text())
-        return Manifest(
-            entities={
-                key: EntityState(**state) for key, state in data.get("entities", {}).items()
-            },
-            runs=[RunRecord(**run) for run in data.get("runs", [])],
-        )
+        try:
+            data = json.loads(self.path.read_text())
+            return Manifest(
+                entities={
+                    key: EntityState(**state)
+                    for key, state in data.get("entities", {}).items()
+                },
+                runs=[RunRecord(**run) for run in data.get("runs", [])],
+            )
+        except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError) as exc:
+            return Manifest(
+                error=(
+                    f"{self.path} could not be read ({type(exc).__name__}: {exc}). "
+                    "Waypoint is treating every entity as never-synced. Delete the "
+                    "file and press Sync to rebuild it -- nothing in it is data, "
+                    "only a record of what arrived."
+                )
+            )
 
     def save(self, manifest: Manifest) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

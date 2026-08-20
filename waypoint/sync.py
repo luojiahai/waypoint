@@ -61,16 +61,43 @@ def _progress_path(root: Path) -> Path:
 
 
 def read_progress(root: Path) -> Progress:
+    """Read `state/progress.json`, or say why it could not be read.
+
+    A file Waypoint wrote itself must never brick the UI: an unknown or missing
+    key is a `TypeError` out of the dataclass constructor, and a truncated write
+    is a `JSONDecodeError` -- both used to escape into every page's dependency
+    and 500 the whole app, the Sync page included (UI§9).
+    """
     path = _progress_path(root)
     if not path.exists():
         return Progress()
-    return Progress(**json.loads(path.read_text()))
+    try:
+        return Progress(**json.loads(path.read_text()))
+    except (OSError, UnicodeDecodeError, ValueError, TypeError) as exc:
+        return Progress(
+            state="failed",
+            step="",
+            message=(
+                f"{path} could not be read ({type(exc).__name__}: {exc}). "
+                "Delete the file and press Sync to start a fresh run — it records "
+                "only the last run's progress, not any data."
+            ),
+        )
 
 
 def write_progress(root: Path, progress: Progress) -> None:
+    """Write `state/progress.json` atomically.
+
+    A sync killed mid-write (SIGKILL, OOM, a closed laptop) would otherwise
+    leave a truncated file that every page then has to defend against, so this
+    matches `ManifestStore.save`: write a sibling `.tmp` and rename it over the
+    target, which is atomic on the same filesystem.
+    """
     path = _progress_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(progress), indent=2))
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(asdict(progress), indent=2))
+    temporary.replace(path)
 
 
 def _process_alive(pid: int) -> bool:
