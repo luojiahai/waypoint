@@ -109,3 +109,39 @@ def test_data_status_is_hashable_and_frozen():
         pass
     else:
         raise AssertionError("expected FrozenInstanceError on attribute assignment")
+
+
+def test_failed_reason_reports_known_failure_alongside_missing_entity(tmp_path: Path):
+    manifest = manifest_with(tmp_path, {
+        "issues": ("jira", "failed", 0, "401 authentication failed"),
+    })
+    status = panel_status(manifest, JIRA_ISSUES)
+    assert status.badge == "FAILED"
+    assert "jira/changelogs" in status.reason
+    assert "never synced" in status.reason.lower()
+    assert "401 authentication failed" in status.reason
+
+
+def test_unaffected_clause_omitted_for_a_mixed_source_group(tmp_path: Path):
+    from waypoint.metrics.status import EVERYTHING
+
+    manifest = manifest_with(tmp_path, {
+        "pull_requests": ("github", "ok", 12, None),
+        "reviews": ("github", "ok", 5, None),
+        "review_requests": ("github", "ok", 2, None),
+        "issues": ("jira", "failed", 0, "timeout"),
+        "changelogs": ("jira", "ok", 3, None),
+        "board_config": ("jira", "ok", 1, None),
+    })
+    status = panel_status(manifest, EVERYTHING)
+    assert status.badge == "FAILED"
+    assert "unaffected" not in status.reason.lower()
+
+
+def test_unaffected_clause_still_present_for_a_single_source_group(tmp_path: Path):
+    manifest = manifest_with(tmp_path, {
+        "issues": ("jira", "failed", 0, "401 authentication failed"),
+        "changelogs": ("jira", "failed", 0, "401 authentication failed"),
+    })
+    status = panel_status(manifest, JIRA_ISSUES)
+    assert "GitHub panels are unaffected." in status.reason

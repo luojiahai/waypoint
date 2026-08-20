@@ -49,6 +49,18 @@ def _sources(entities: Sequence[str]) -> list[str]:
     return seen
 
 
+def _unaffected_clause(entities: Sequence[str]) -> str:
+    """The "X panels are unaffected" clause, or "" when nothing is true to say.
+
+    A panel that spans more than one source cannot claim any other source is
+    unaffected, because the failing group includes that source too.
+    """
+    sources_present = _sources(entities)
+    if len(sources_present) != 1:
+        return ""
+    return _UNAFFECTED.get(sources_present[0], "")
+
+
 def panel_status(manifest: "Manifest", entities: Sequence[str]) -> DataStatus:
     state = manifest.status_for(entities)
     if state == "ok":
@@ -59,17 +71,17 @@ def panel_status(manifest: "Manifest", entities: Sequence[str]) -> DataStatus:
     errors = sorted({e.error for e in known if e.error})
     error_text = "; ".join(errors) if errors else "no error recorded"
     arrived = sum(e.count for e in known if e.status != "ok")
-    other = ", ".join(_UNAFFECTED[source] for source in _sources(entities) if source in _UNAFFECTED)
+    other = _unaffected_clause(entities)
 
     if state == "failed" and missing:
-        return DataStatus(
-            state="failed",
-            badge="FAILED",
-            reason=(
-                f"{', '.join(missing)} has never synced. Press Sync to fetch it, "
-                f"or run `waypoint doctor` if configuration is incomplete."
-            ),
+        reason = f"{', '.join(missing)} has never synced."
+        if errors:
+            sources = " and ".join(_sources(entities))
+            reason += f" {sources} failed: {error_text}."
+        reason += (
+            " Press Sync to fetch it, or run `waypoint doctor` if configuration is incomplete."
         )
+        return DataStatus(state="failed", badge="FAILED", reason=reason)
     if state == "failed":
         sources = " and ".join(_sources(entities))
         return DataStatus(
