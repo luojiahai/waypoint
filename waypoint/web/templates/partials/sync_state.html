@@ -1,0 +1,11 @@
+{% set progress = progress|default(ctx.progress) %}
+<span class="sync-state {{ 'failed' if progress.state == 'failed' else '' }}"
+      id="sync-state"
+      {% if progress.state == 'running' %}
+      hx-get="/sync/status" hx-trigger="every 2s" hx-swap="outerHTML"
+      {% endif %}>
+  {% if progress.state == 'running' %}syncing · {{ progress.step }}
+  {% elif progress.state == 'failed' %}sync failed · {{ progress.message }}
+  {% elif progress.state == 'done' %}synced · {{ progress.message }}
+  {% else %}{{ ctx.sync_label }}{% endif %}
+</span>

@@ -1,3 +1,75 @@
 {% extends "base.html" %}
+{% import "components/ui.html" as ui %}
 {% block content %}
+<div class="band">
+  <div class="grid">
+
+    {{ ui.panel_open("last run") }}
+      {% if not entities %}
+        {{ ui.empty("No sync has run yet.") }}
+      {% endif %}
+      {% for entity in entities %}
+      <div class="row">
+        <span class="grow">
+          <div>{{ entity.key }}
+            {% if entity.status != 'ok' %}
+              {{ ui.badge(entity.status|upper, entity.status) }}
+            {% endif %}
+          </div>
+          {% if entity.error %}
+          <div class="{{ 'high' if entity.status == 'failed' else 'med' }}">
+            {{ entity.error }}
+            {% if entity.watermark %} · resume from {{ entity.watermark }}{% endif %}
+          </div>
+          {% endif %}
+        </span>
+        <span class="right">{{ entity.count }} records · {{ entity.last_run_at }}</span>
+      </div>
+      {% endfor %}
+    {{ ui.panel_close() }}
+
+    <div>
+      {{ ui.panel_open("rate limits") }}
+        {% for source, limits in progress.rate_limit.items() %}
+        <div class="row">
+          <span class="grow">{{ source }}</span>
+          <span class="right">
+            {{ limits.remaining if limits.remaining is not none else "—" }} remaining
+            {% if limits.reset_at %} · resets {{ limits.reset_at }}{% endif %}
+            {% if limits.waited_seconds %} · waited {{ limits.waited_seconds }}s{% endif %}
+          </span>
+        </div>
+        {% else %}
+        <div class="meta">No rate-limit headers seen on the last run.</div>
+        {% endfor %}
+        <div class="meta">
+          Waypoint honours Retry-After and backs off. GitHub secondary rate limits are
+          expected during the first 90-day backfill.
+        </div>
+        <div class="meta-2">Last run: {{ progress.state }} · {{ progress.message or "—" }}</div>
+      {{ ui.panel_close() }}
+
+      <div class="grid-below">
+      {{ ui.panel_open("roster health",
+                       none,
+                       ui.badge(unattributed|length ~ " UNMATCHED", "") if unattributed else none) }}
+        {% if not unattributed %}
+          <div class="ok">Every identity in the data is in the roster.</div>
+        {% else %}
+          {% for row in unattributed %}
+          <div class="row">
+            <span class="grow">
+              <div>{{ row.identity }} <span class="meta">{{ row.source }} · {{ row.kind }}</span></div>
+              <div class="meta">{{ row.hint }}</div>
+            </span>
+            <span class="right">{{ row.count }}</span>
+          </div>
+          {% endfor %}
+        {% endif %}
+      {{ ui.panel_close() }}
+      </div>
+    </div>
+
+  </div>
+</div>
 {% endblock %}

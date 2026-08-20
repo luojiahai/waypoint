@@ -67,10 +67,15 @@ def test_chrome_carries_the_wordmark_four_nav_items_and_the_sync_button(client: 
 
 
 def test_a_fresh_install_shows_the_first_run_panel_on_every_page(client: TestClient):
-    for path in ("/", "/delivery", "/people", "/sync"):
+    for path in ("/", "/delivery", "/people"):
         body = client.get(path).text
         assert "No data yet" in body
         assert "waypoint doctor" in body
+
+
+def test_a_fresh_install_shows_the_sync_page_ready_to_run(client: TestClient):
+    body = client.get("/sync").text
+    assert "No sync has run yet." in body
 
 
 def test_the_active_nav_item_is_marked(client: TestClient):

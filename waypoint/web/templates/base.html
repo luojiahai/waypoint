@@ -17,8 +17,7 @@
     <a class="nav-item{% if page == 'sync' %} active{% endif %}" href="/sync">sync</a>
   </nav>
   <span class="chrome-right">
-    <span class="sync-state {{ ctx.sync_state }}"
-          id="sync-state">{{ ctx.sync_label }}</span>
+    {% include "partials/sync_state.html" ignore missing with context %}
     <button class="button primary" hx-post="/sync" hx-target="#sync-state" hx-swap="outerHTML">
       Sync
     </button>
