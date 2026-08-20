@@ -16,7 +16,6 @@ from waypoint import clock
 
 SEVERITIES = {"high", "med", "low"}
 TOP_LEVEL = ("skill", "generated_at", "window", "inputs_digest", "items")
-_DATE_PREFIX_LEN = len("YYYY-MM-DD-")
 
 
 class SidecarError(Exception):
@@ -112,13 +111,17 @@ class ReportStore:
 
     def _load(self, sidecar_path: Path) -> Report:
         markdown_path = sidecar_path.with_suffix(".md")
-        skill_slug = sidecar_path.stem[_DATE_PREFIX_LEN:]  # strip the YYYY-MM-DD- prefix
         try:
             data = json.loads(sidecar_path.read_text())
             validate_sidecar(data)
-        except (json.JSONDecodeError, SidecarError) as exc:
+        except (json.JSONDecodeError, SidecarError, UnicodeDecodeError) as exc:
+            # `skill` is left blank rather than reconstructed from the filename
+            # stem: a malformed sidecar's own content is untrusted, and welding
+            # a person id onto a guessed slug would claim a skill id that no
+            # skill actually has. `sidecar_path` still carries the raw stem for
+            # anyone who needs it.
             return Report(
-                skill=f"waypoint:{skill_slug}",
+                skill="",
                 generated_at="",
                 window_from="",
                 window_to="",

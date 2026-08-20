@@ -99,6 +99,24 @@ def test_a_malformed_sidecar_is_retained_and_linked_as_markdown(tmp_path: Path):
     assert report.error
 
 
+def test_a_non_utf8_sidecar_is_malformed_not_a_crash(tmp_path: Path):
+    store = ReportStore(tmp_path)
+    store.write("waypoint:delivery-risk", VALID, "# fine", at=datetime(2026, 8, 1, tzinfo=UTC))
+    (tmp_path / "reports" / "2026-08-19-growth-review.json").write_bytes(b"\xff\xfe\x00not utf-8")
+    (tmp_path / "reports" / "2026-08-19-growth-review.md").write_text("# Still useful")
+
+    reports = ReportStore(tmp_path).all_reports()
+    by_name = {report.sidecar_path.name: report for report in reports}
+
+    corrupt = by_name["2026-08-19-growth-review.json"]
+    assert corrupt.malformed is True
+    assert corrupt.error
+
+    good = by_name["2026-08-01-delivery-risk.json"]
+    assert good.malformed is False
+    assert good.items[0].title == VALID["items"][0]["title"]
+
+
 def test_latest_returns_the_newest_report_for_a_skill(tmp_path: Path):
     store = ReportStore(tmp_path)
     store.write("waypoint:delivery-risk", VALID, "# old", at=datetime(2026, 8, 1, tzinfo=UTC))
@@ -128,6 +146,16 @@ def test_person_scoped_reports_do_not_overwrite_each_other(tmp_path: Path):
         "Ask Bo about the review backlog"
     )
     assert reread.latest("waypoint:one-on-one-prep") is None
+
+
+def test_a_malformed_person_scoped_sidecar_does_not_fabricate_a_skill_id(tmp_path: Path):
+    (tmp_path / "reports").mkdir(parents=True)
+    (tmp_path / "reports" / "2026-08-19-one-on-one-prep-alex-rivera.json").write_text("{not json")
+    (tmp_path / "reports" / "2026-08-19-one-on-one-prep-alex-rivera.md").write_text("# alex")
+
+    report = ReportStore(tmp_path).latest("waypoint:one-on-one-prep", person_id="alex-rivera")
+    assert report.malformed is True
+    assert report.skill != "waypoint:one-on-one-prep-alex-rivera"
 
 
 def test_reports_never_contain_a_token(tmp_path: Path):
