@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+{% block content %}
+
+<div class="band">
+  <span class="page-title">people / {{ view.name }}</span>
+  <span class="meta"> {{ view.github_login }} · {{ view.jira_account_id }}</span>
+  <span class="right">
+    <form method="get" class="form-inline">
+      <input class="button secondary" type="date" name="since" value="{{ view.window_from[:10] }}">
+      <button class="button secondary" type="submit">{{ view.window_label }}</button>
+    </form>
+  </span>
+</div>
+
+<div class="band">{{ ui.standing_note(note) }}</div>
+
+<div class="band">
+  <div class="grid">
+    {% for panel in [view.shipped, view.in_flight] %}
+      {{ ui.panel_open(panel.label, status) }}
+        {% if panel.empty_message %}{{ ui.empty(panel.empty_message) }}
+        {% else %}
+          {% for item in panel.items %}
+            {{ ui.item_row(item.ref, item.title, item.meta, item.age_text, item.url) }}
+          {% endfor %}
+        {% endif %}
+      {{ ui.panel_close() }}
+    {% endfor %}
+  </div>
+  <div class="grid grid-below">
+    {% for panel in [view.waiting_on_others, view.others_waiting_on_them] %}
+      {{ ui.panel_open(panel.label, status) }}
+        {% if panel.empty_message %}{{ ui.empty(panel.empty_message) }}
+        {% else %}
+          {% for item in panel.items %}
+            {{ ui.item_row(item.ref, item.title, item.meta, item.age_text, item.url) }}
+          {% endfor %}
+        {% endif %}
+      {{ ui.panel_close() }}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="band">
+  {{ ui.panel_open("work mix", status) }}
+    <p class="prose">{{ view.work_mix.prose }}</p>
+    <div class="grid">
+      {% for bucket in view.work_mix.buckets %}
+      <div>
+        <div class="section-label {{ bucket.color }}">{{ bucket.name }} · {{ bucket.count }}</div>
+        <div class="meta-2">
+          {% if bucket.keys %}{{ bucket.keys|join(", ") }}
+          {% else %}<span class="text-3">none</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {{ ui.panel_close() }}
+</div>
+
+{% endblock %}

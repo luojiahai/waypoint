@@ -1,3 +1,18 @@
 {% extends "base.html" %}
+{% import "components/ui.html" as ui %}
 {% block content %}
+<div class="band">
+  <div class="grid-3">
+    {% for card in cards %}
+    <a class="card{% if card.flagged %} flagged{% endif %}" href="/people/{{ card.person_id }}">
+      <div class="name">{{ card.name }}</div>
+      <div class="handle">{{ card.handle }}</div>
+      {% for line in card.lines %}
+      <div class="line{% if line.emphasis %} {{ line.emphasis }}{% endif %}">{{ line.text }}</div>
+      {% endfor %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+<div class="band">{{ ui.standing_note(note) }}</div>
 {% endblock %}
