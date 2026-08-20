@@ -6,11 +6,13 @@ degrades cleanly to read-only when it is absent (§6, §15).
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from waypoint.config import SECRET_VARS
 from waypoint.store.reports import Report, ReportStore
 
 DEFAULT_TIMEOUT = 300
@@ -59,6 +61,21 @@ def claude_available(runner: str = "claude") -> bool:
     return shutil.which(runner) is not None
 
 
+def _child_env() -> dict[str, str]:
+    """The environment handed to the skill subprocess.
+
+    A skill reads `.waypoint/` through `waypoint query`; it never calls
+    GitHub or Jira itself, so it has no legitimate need for Waypoint's own
+    credentials. This is the one place in the product where control passes
+    to an external process, so least privilege matters here especially: the
+    child gets everything else it needs to run (PATH, HOME, ...) but never
+    `WAYPOINT_GITHUB_TOKEN`, `WAYPOINT_JIRA_TOKEN`, or `WAYPOINT_JIRA_EMAIL`
+    -- even when an operator exports them as real environment variables
+    rather than keeping them only in a gitignored `.env`.
+    """
+    return {key: value for key, value in os.environ.items() if key not in SECRET_VARS}
+
+
 def run_skill(
     project_dir: Path,
     slug: str,
@@ -81,7 +98,8 @@ def run_skill(
     command = [runner, "-p", prompt, "--permission-mode", "acceptEdits"]
     try:
         completed = subprocess_run(
-            command, cwd=str(project_dir), capture_output=True, text=True, timeout=timeout
+            command, cwd=str(project_dir), capture_output=True, text=True, timeout=timeout,
+            env=_child_env(),
         )
     except FileNotFoundError:
         return RunOutcome(

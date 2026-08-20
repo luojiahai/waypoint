@@ -67,6 +67,33 @@ def test_the_command_invokes_the_skill_headlessly_in_the_project_directory(proje
     assert seen["cwd"] == str(project_dir)
 
 
+def test_the_subprocess_never_receives_waypoint_secrets(project_dir: Path, monkeypatch):
+    # The skill has no legitimate need for Waypoint's own GitHub/Jira
+    # credentials -- it reads `.waypoint/` through `waypoint query`, never
+    # calling GitHub or Jira itself. This is the one place in the product
+    # where control passes to an external process, so least privilege
+    # matters here especially: the child gets everything else (PATH and
+    # friends) but never the WAYPOINT_* secrets, even when they're exported
+    # as real environment variables rather than living only in `.env`.
+    monkeypatch.setenv("WAYPOINT_GITHUB_TOKEN", "ghp_should_never_leave_this_process")
+    monkeypatch.setenv("WAYPOINT_JIRA_TOKEN", "jira_should_never_leave_this_process")
+    monkeypatch.setenv("WAYPOINT_JIRA_EMAIL", "someone@example.com")
+    seen = {}
+
+    def runner(cmd, **kwargs):
+        seen["env"] = kwargs.get("env")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    skills_runner.run_skill(project_dir, "delivery-risk", subprocess_run=runner)
+
+    env = seen["env"]
+    assert env is not None
+    assert "WAYPOINT_GITHUB_TOKEN" not in env
+    assert "WAYPOINT_JIRA_TOKEN" not in env
+    assert "WAYPOINT_JIRA_EMAIL" not in env
+    assert "PATH" in env  # the child still gets what it needs to run at all
+
+
 def test_a_person_scoped_skill_passes_the_person(project_dir: Path):
     seen = {}
 
