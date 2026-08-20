@@ -5,6 +5,7 @@ import pytest
 
 from waypoint.config import load_config
 from waypoint.metrics import risks
+from waypoint.store.reports import ReportItem
 from tests.factories import (
     insert_column, insert_issue, insert_person, insert_pr, insert_repo,
     insert_review, insert_transition, make_db
@@ -238,3 +239,39 @@ def test_every_risk_carries_evidence(con, cfg):
     for item in risks.rule_risks(con, cfg, now=NOW).items:
         assert item.evidence
         assert item.evidence[0].ref
+
+
+def test_merge_skill_risks_sorts_skill_items_into_the_rule_register():
+    # Same merge-and-sort the web layer used to do inline (Task 29 review):
+    # it now lives here so the ordering rule can't drift between metrics and
+    # the route -- there's exactly one SEVERITY_ORDER.
+    register = risks.RiskRegister(items=[
+        risks.Risk(
+            rule="pr_no_review", severity="med", title="A rule risk", detail="",
+            evidence=[risks.Evidence("pull_request", "platform/api#1", "https://ghe/pr/1")],
+            age_days=5.0, age_text="5d",
+        ),
+    ])
+    item = ReportItem(
+        severity="high", title="A skill risk", body="detail text",
+        evidence=[{"type": "pull_request", "ref": "PR #482", "url": "https://ghe/pr/482"}],
+        question="Q?",
+    )
+
+    merged = risks.merge_skill_risks(register, [item])
+
+    assert [row.title for row in merged] == ["A skill risk", "A rule risk"]
+    assert merged[0].origin == "skill"
+    assert merged[0].rule == "skill"
+    assert merged[0].detail == "detail text"
+    assert merged[0].age_days == 0.0
+    assert merged[0].evidence == [risks.Evidence("pull_request", "PR #482", "https://ghe/pr/482")]
+    assert merged[1].origin == "rule"
+
+
+def test_merge_skill_risks_with_no_items_leaves_the_register_unchanged():
+    register = risks.RiskRegister(items=[
+        risks.Risk(rule="pr_no_review", severity="med", title="A rule risk", detail="",
+                   evidence=[], age_days=5.0, age_text="5d"),
+    ])
+    assert risks.merge_skill_risks(register, []) == register.items

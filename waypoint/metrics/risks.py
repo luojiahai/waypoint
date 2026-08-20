@@ -1,13 +1,15 @@
 """The rule-derived risk register.
 
 Always present and independent of any skill (§11). Each risk carries what, why,
-and a link to the underlying item. Skill-generated risks are merged into the same
-list by the web layer and badged by origin.
+and a link to the underlying item. Skill-generated risks merge into the same
+list via `merge_skill_risks` and are badged by origin -- the web layer only
+calls it and renders the result (§6: the web layer never computes).
 """
 
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -16,6 +18,7 @@ from waypoint.config import Config
 from waypoint.metrics import board, epics
 from waypoint.roster import UNATTRIBUTED
 from waypoint.store.derive import IN_PROGRESS, days_between
+from waypoint.store.reports import ReportItem
 
 SEVERITY_ORDER = {"high": 0, "med": 1, "low": 2}
 
@@ -49,6 +52,32 @@ class RiskRegister:
     items: list[Risk] = field(default_factory=list)
     evaluated: int = 0
     empty_message: str | None = None
+
+
+def merge_skill_risks(register: RiskRegister, items: Sequence[ReportItem]) -> list[Risk]:
+    """Merge a skill report's items into the rule-derived register, sorted.
+
+    A skill report carries no per-item age, so merged rows sort as if age
+    were 0 -- ties within a severity fall back to `rule`, same as
+    rule-derived risks. Skill items are badged `origin="skill"`; everything
+    else keeps `origin="rule"` (§11).
+    """
+    merged = list(register.items)
+    for item in items:
+        merged.append(
+            Risk(
+                rule="skill", severity=item.severity, title=item.title,
+                detail=item.body,
+                evidence=[
+                    Evidence(source.get("type", "item"), source.get("ref", ""),
+                             source.get("url", ""))
+                    for source in item.evidence
+                ],
+                age_days=0.0, age_text="", origin="skill",
+            )
+        )
+    merged.sort(key=lambda risk: (SEVERITY_ORDER[risk.severity], -risk.age_days, risk.rule))
+    return merged
 
 
 def escalate(threshold_widths_over: float) -> str:

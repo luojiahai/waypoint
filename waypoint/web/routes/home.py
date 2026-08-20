@@ -55,7 +55,7 @@ def home(request: Request, ctx: PageContext = Depends(page_context)) -> HTMLResp
     register = risks.rule_risks(con, ctx.cfg, now=now)
 
     from waypoint import skills_runner
-    from waypoint.metrics.risks import Evidence, Risk
+    from waypoint.metrics.risks import merge_skill_risks
     from waypoint.metrics.status import stale_status
     from waypoint.store.reports import ReportStore
 
@@ -65,22 +65,7 @@ def home(request: Request, ctx: PageContext = Depends(page_context)) -> HTMLResp
     merged = list(register.items)
     if report is not None and not report.malformed:
         report_status = stale_status(report.inputs_digest, ctx.manifest, report.generated_at)
-        for item in report.items:
-            merged.append(
-                Risk(
-                    rule="skill", severity=item.severity, title=item.title,
-                    detail=item.body,
-                    evidence=[
-                        Evidence(source.get("type", "item"), source.get("ref", ""),
-                                 source.get("url", ""))
-                        for source in item.evidence
-                    ],
-                    age_days=0.0, age_text="", origin="skill",
-                )
-            )
-        merged.sort(key=lambda risk: (
-            {"high": 0, "med": 1, "low": 2}[risk.severity], -risk.age_days, risk.rule
-        ))
+        merged = merge_skill_risks(register, report.items)
 
     open_prs = [
         QueueItem(ref=item.id, title=item.title, meta=item.repo_id,
