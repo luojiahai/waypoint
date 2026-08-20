@@ -1,5 +1,4 @@
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -87,17 +86,35 @@ def test_sync_state_reads_as_never_synced_before_the_first_run(client: TestClien
     assert "never synced" in client.get("/").text
 
 
-def test_sync_state_reflects_a_partial_run(project_dir: Path):
+def _record_run(project_dir: Path, status: str) -> str:
     from waypoint.sources.base import EntityStatus
     from waypoint.store.manifest import ManifestStore
 
     store = ManifestStore(project_dir / ".waypoint")
     manifest = store.load()
-    manifest.record("github", {"pull_requests": EntityStatus("pull_requests", "partial", 3)},
+    manifest.record("github", {"pull_requests": EntityStatus("pull_requests", status, 3)},
                     "r1", "2026-08-19T09:12:03Z")
     store.save(manifest)
-    body = TestClient(create_app(project_dir)).get("/").text
+    return TestClient(create_app(project_dir)).get("/").text
+
+
+def test_sync_state_reflects_a_partial_run(project_dir: Path):
+    body = _record_run(project_dir, "partial")
     assert "last sync partial" in body
+
+
+def test_a_partial_sync_colours_the_chrome_med_and_a_failed_one_high(project_dir: Path):
+    """UI§5: the freshness line is `med` for partial and `high` for failed.
+    `progress.state` is `idle` on a normal page load, so deriving the class
+    from it left `.sync-state.partial` unreachable and a failed sync grey."""
+    assert 'class="sync-state partial"' in _record_run(project_dir, "partial")
+    assert 'class="sync-state failed"' in _record_run(project_dir, "failed")
+
+
+def test_the_chrome_carries_no_severity_class_when_the_last_sync_was_clean(project_dir: Path):
+    body = _record_run(project_dir, "ok")
+    assert 'class="sync-state ok"' in body
+    assert "partial" not in body and "failed" not in body
 
 
 def test_static_assets_are_served(client: TestClient):

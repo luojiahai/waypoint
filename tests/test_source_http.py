@@ -131,3 +131,32 @@ def test_negative_retry_after_does_not_crash_and_records_a_non_negative_sleep():
     assert client.get("/thing").status_code == 200
     assert slept == [0.0]
     assert client.rate_limit.waited_seconds == 0.0
+
+
+def test_a_zero_retry_after_still_names_the_suggested_wait():
+    """`Retry-After: 0` is a real instruction, not an absent one -- reading it
+    for truthiness dropped the sentence the `is not None` check above keeps."""
+    client, _ = make_client(
+        lambda request: httpx.Response(429, headers={"Retry-After": "0"}), max_attempts=1
+    )
+    with pytest.raises(SourceError) as exc:
+        client.get("/thing")
+    assert "Last suggested wait was 0s." in exc.value.message
+
+
+def test_a_two_hundred_that_is_not_json_becomes_an_actionable_source_error():
+    """A 200 carrying an SSO login page would otherwise raise JSONDecodeError,
+    which `run_sync` does not catch -- so the CLI prints a traceback and
+    `progress.json` is left saying "running" forever."""
+    from waypoint.sources.http import json_body
+
+    client, _ = make_client(
+        lambda request: httpx.Response(200, text="<html>Sign in to continue</html>")
+    )
+    with pytest.raises(SourceError) as exc:
+        json_body(client.get("/thing"), "The GitHub GraphQL API")
+    message = exc.value.message
+    assert "The GitHub GraphQL API" in message
+    assert "not JSON" in message
+    assert "config.toml" in message and "waypoint doctor" in message
+    assert exc.value.kind == "http"

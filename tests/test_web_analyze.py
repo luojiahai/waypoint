@@ -35,6 +35,12 @@ def seed(project_dir: Path, digest_matches=False):
     manifest.record("github", {e: EntityStatus(e, "ok", 1)
                                for e in ("pull_requests", "reviews", "review_requests")},
                     "r1", "2026-08-19T09:12:03Z")
+    # Jira has to be recorded too, or the register is FAILED for a missing
+    # entity and staleness is not what these tests are isolating: the register
+    # panel now shows the *worst* of the data status and the report status.
+    manifest.record("jira", {e: EntityStatus(e, "ok", 1)
+                             for e in ("issues", "changelogs", "board_config")},
+                    "r1", "2026-08-19T09:12:03Z")
     store.save(manifest)
     sidecar = json.loads(json.dumps(SIDECAR))
     if digest_matches:

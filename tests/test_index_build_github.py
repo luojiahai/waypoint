@@ -139,6 +139,40 @@ def test_unknown_login_is_attributed_to_unattributed_and_recorded(project_dir: P
     assert ("github", "stranger", "author", 1) in result.unattributed
 
 
+def test_a_configured_bot_login_is_not_reported_as_unrostered(project_dir: Path):
+    """The Sync page tells the user to add the account to `github.bot_logins`
+    (conftest configures `dependabot` and `renovate`), so doing so has to make
+    the identity stop coming back after every sync. An unknown human login
+    must still be reported."""
+    root = project_dir / ".waypoint"
+    write_prs(root, [
+        RawRecord("github", "pull_requests", "platform/api#486", "2026-08-19T09:00:00Z",
+                  pr_payload(486, author={"login": "dependabot"})),
+        RawRecord("github", "pull_requests", "platform/api#487", "2026-08-19T09:00:00Z",
+                  pr_payload(487, author={"login": "Renovate"})),
+        RawRecord("github", "pull_requests", "platform/api#488", "2026-08-19T09:00:00Z",
+                  pr_payload(488, author={"login": "stranger"})),
+    ])
+    result = build(root, load_config(root), now=NOW)
+    con = connect(root / "index.db", read_only=True)
+
+    logins = {row["identity"] for row in con.execute("SELECT identity FROM unattributed")}
+    assert logins == {"stranger"}
+    assert [row[1] for row in result.unattributed] == ["stranger"]
+    # The PRs are still indexed and still bucketed to `unattributed` -- the
+    # filter only silences the roster-health nag, it does not drop data.
+    assert con.execute("SELECT count(*) FROM pull_requests").fetchone()[0] == 3
+
+
+def test_a_bot_login_is_still_reported_when_it_is_not_configured(project_dir: Path):
+    root = project_dir / ".waypoint"
+    write_prs(root, [RawRecord("github", "pull_requests", "platform/api#489",
+                               "2026-08-19T09:00:00Z",
+                               pr_payload(489, author={"login": "some-other-bot"}))])
+    result = build(root, load_config(root), now=NOW)
+    assert ("github", "some-other-bot", "author", 1) in result.unattributed
+
+
 def test_last_writer_wins_across_overlapping_snapshots(project_dir: Path):
     root = project_dir / ".waypoint"
     store = RawStore(root)

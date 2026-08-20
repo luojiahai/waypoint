@@ -1,5 +1,11 @@
 {% set progress = progress|default(ctx.progress) %}
-<span class="sync-state {{ 'failed' if progress.state == 'failed' else '' }}"
+{# UI§5 colours this line by severity: `med` for a partial sync, `high` for a
+   failed one. That comes from `ctx.sync_state` (the manifest's last run) -- on a
+   normal page load `progress.state` is `idle`, which is why it may only drive
+   the live-run wording and the poll below, never the colour. A sync that failed
+   in this very request has no manifest run yet, so it keeps its own colour. #}
+{% set tone = 'failed' if progress.state == 'failed' else ctx.sync_state %}
+<span class="sync-state {{ tone }}"
       id="sync-state"
       {% if progress.state == 'running' %}
       hx-get="/sync/status" hx-trigger="every 2s" hx-swap="outerHTML"

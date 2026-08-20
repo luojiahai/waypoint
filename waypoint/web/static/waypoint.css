@@ -55,6 +55,7 @@ nav { display: flex; gap: 16px; }
 .nav-item.active { color: var(--text); border-bottom-color: var(--ok); }
 .chrome-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .sync-state { color: var(--text-3); }
+.sync-state.ok { color: var(--text-3); }
 .sync-state.partial { color: var(--med); }
 .sync-state.failed { color: var(--high); }
 

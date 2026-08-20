@@ -1,4 +1,3 @@
-import pytest
 
 from waypoint.metrics import charts
 

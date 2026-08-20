@@ -28,7 +28,7 @@ from waypoint import clock
 from waypoint.config import JiraConfig
 from waypoint.errors import SourceError
 from waypoint.sources.base import FAILED, OK, PARTIAL, EntityStatus, RawRecord
-from waypoint.sources.http import HttpClient
+from waypoint.sources.http import HttpClient, json_body
 
 API_PATH = "/rest/api/3"
 AGILE_PATH = "/rest/agile/1.0"
@@ -80,7 +80,7 @@ class JiraSource:
     def board_type(self) -> str:
         """Used by `waypoint doctor` to reject a non-kanban board up front."""
         response = self.http.get(f"{self.base}{AGILE_PATH}/board/{self.cfg.board_id}")
-        return str(response.json().get("type", ""))
+        return str(json_body(response, "The Jira Agile API").get("type", ""))
 
     def board_configuration_readable(self) -> bool:
         """Used by `waypoint doctor` to confirm the board configuration endpoint is readable."""
@@ -136,7 +136,7 @@ class JiraSource:
                     "maxResults": self.page_size,
                 },
             )
-            body = response.json()
+            body = json_body(response, "The Jira search API")
             issues = body.get("issues", [])
             if not issues:
                 return
@@ -182,5 +182,5 @@ class JiraSource:
             "board_config",
             f"board:{self.cfg.board_id}",
             clock.iso(clock.now()),
-            response.json(),
+            json_body(response, "The Jira board configuration API"),
         )

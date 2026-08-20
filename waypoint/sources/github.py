@@ -17,7 +17,7 @@ from waypoint import clock
 from waypoint.config import GithubConfig
 from waypoint.errors import SourceError
 from waypoint.sources.base import FAILED, OK, PARTIAL, EntityStatus, RawRecord
-from waypoint.sources.http import HttpClient
+from waypoint.sources.http import HttpClient, json_body
 
 GRAPHQL_PATH = "/api/graphql"
 REST_PATH = "/api/v3"
@@ -137,7 +137,7 @@ class GithubSource:
                     },
                 },
             )
-            body = response.json()
+            body = json_body(response, "The GitHub GraphQL API")
             if body.get("errors"):
                 message = "; ".join(e.get("message", "") for e in body["errors"])
                 raise SourceError(f"GraphQL error: {message}", kind="http")
@@ -230,7 +230,7 @@ class GithubSource:
             if exc.kind == "auth":
                 raise
             return False
-        return not response.json().get("errors")
+        return not json_body(response, "The GitHub GraphQL API").get("errors")
 
     def _fetch_repo_rest(self, repo: str, watermark: str | None) -> Iterator[RawRecord]:
         """REST fallback. Reviews are an extra request per PR — the N+1 GraphQL avoids."""
@@ -246,7 +246,7 @@ class GithubSource:
                     "page": page,
                 },
             )
-            nodes = response.json()
+            nodes = json_body(response, f"The GitHub REST API for {repo}")
             if not nodes:
                 return
             for node in nodes:
@@ -264,9 +264,12 @@ class GithubSource:
         self._status["pull_requests"].count += 1
         yield RawRecord("github", "pull_requests", pr_id, fetched_at, node)
 
-        reviews = self.http.get(
-            f"{self.cfg.base_url}{REST_PATH}/repos/{repo}/pulls/{node['number']}/reviews"
-        ).json()
+        reviews = json_body(
+            self.http.get(
+                f"{self.cfg.base_url}{REST_PATH}/repos/{repo}/pulls/{node['number']}/reviews"
+            ),
+            f"The GitHub REST API for {repo}",
+        )
         for review in reviews:
             payload = dict(review)
             payload["pull_request_id"] = pr_id

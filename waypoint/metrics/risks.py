@@ -12,13 +12,16 @@ import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from waypoint import clock
 from waypoint.config import Config
 from waypoint.metrics import board, epics
 from waypoint.roster import UNATTRIBUTED
-from waypoint.store.derive import IN_PROGRESS, days_between
-from waypoint.store.reports import ReportItem
+from waypoint.store.derive import days_between
+
+if TYPE_CHECKING:  # `store.reports` touches the filesystem; only its dataclass is used
+    from waypoint.store.reports import ReportItem
 
 SEVERITY_ORDER = {"high": 0, "med": 1, "low": 2}
 
@@ -54,7 +57,7 @@ class RiskRegister:
     empty_message: str | None = None
 
 
-def merge_skill_risks(register: RiskRegister, items: Sequence[ReportItem]) -> list[Risk]:
+def merge_skill_risks(register: RiskRegister, items: Sequence["ReportItem"]) -> list[Risk]:
     """Merge a skill report's items into the rule-derived register, sorted.
 
     A skill report carries no per-item age, so merged rows sort as if age

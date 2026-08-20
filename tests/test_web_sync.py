@@ -3,7 +3,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from waypoint.sources.base import EntityStatus
-from waypoint.store.index import connect
 from waypoint.store.manifest import ManifestStore
 from waypoint.web.app import create_app
 from tests.factories import insert_person, make_db

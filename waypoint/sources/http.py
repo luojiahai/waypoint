@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
@@ -35,6 +36,30 @@ def _body_excerpt(response: httpx.Response) -> str:
     except Exception:  # pragma: no cover - body already consumed
         return ""
     return " ".join(text.split())[:_BODY_LIMIT]
+
+
+def json_body(response: httpx.Response, what: str) -> Any:
+    """`response.json()`, but a body that is not JSON becomes a `SourceError`.
+
+    A 200 carrying HTML -- an SSO interstitial, a proxy error page, a base_url
+    pointing at the web UI instead of the API -- otherwise raises
+    `json.JSONDecodeError`, which is not a `WaypointError`. `run_sync` catches
+    only `WaypointError`, so such a body escapes the whole handler: the CLI
+    prints a traceback instead of a message, and the final `write_progress`
+    never runs, leaving `state/progress.json` stuck at "running" (§15).
+    """
+    try:
+        return response.json()
+    except ValueError as exc:
+        excerpt = _body_excerpt(response)
+        began = f" It began: {excerpt[:80]}." if excerpt else ""
+        raise SourceError(
+            f"{what} returned {response.status_code} with a body that is not JSON "
+            f"({exc}).{began} Check that the base URL in .waypoint/config.toml points "
+            "at the API host and is not behind an SSO or proxy login page, then run "
+            "`waypoint doctor`.",
+            kind="http",
+        ) from exc
 
 
 def classify(response: httpx.Response) -> SourceError:
@@ -146,7 +171,11 @@ class HttpClient:
             if not retryable or attempt == self.max_attempts - 1:
                 if retryable:
                     delay = _retry_after_seconds(response)
-                    suffix = f" Last suggested wait was {delay:.0f}s." if delay else ""
+                    # `is not None`, not truthiness: a legitimate `Retry-After: 0`
+                    # is still a suggested wait, and matches the check below.
+                    suffix = (
+                        f" Last suggested wait was {delay:.0f}s." if delay is not None else ""
+                    )
                     raise SourceError(error.message + suffix, kind=error.kind)
                 raise error
             delay = _retry_after_seconds(response)

@@ -174,3 +174,17 @@ def test_request_sends_a_bearer_token_and_never_logs_it():
     list(source.fetch({}))
     assert seen["auth"] == "Bearer tok"
     assert "tok" not in json.dumps({k: v.__dict__ for k, v in source.status().items()})
+
+
+def test_a_non_json_two_hundred_is_recorded_as_a_failure_not_raised_raw():
+    """`run_sync` catches `WaypointError` only, and this connector's per-repo
+    handler catches `SourceError` only. A GHE base_url that lands on an SSO
+    page returns a perfectly good 200 whose body is HTML: as a bare
+    `JSONDecodeError` that escapes both, so the CLI prints a traceback and
+    `progress.json` is left saying "running" forever (§15)."""
+    source = make_source(lambda request: httpx.Response(200, text="<html>Sign in</html>"))
+    assert list(source.fetch({})) == []
+    status = source.status()["pull_requests"]
+    assert status.status == "failed"
+    assert "not JSON" in status.error
+    assert "waypoint doctor" in status.error

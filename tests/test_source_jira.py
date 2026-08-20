@@ -239,3 +239,16 @@ def test_board_configuration_readable_raises_on_a_missing_board():
     with pytest.raises(SourceError) as excinfo:
         source.board_configuration_readable()
     assert excinfo.value.kind == "not_found"
+
+
+def test_a_non_json_two_hundred_is_recorded_as_a_failure_not_raised_raw():
+    """Same guard as the GitHub connector: a 200 that is not JSON must arrive
+    as a `SourceError` so the entity is marked failed with a message the user
+    can act on, rather than escaping `run_sync` as a `JSONDecodeError`."""
+    source = make_source(lambda request: httpx.Response(200, text="<html>Sign in</html>"))
+    assert list(source.fetch({})) == []
+    for entity in ("issues", "board_config"):
+        status = source.status()[entity]
+        assert status.status == "failed"
+        assert "not JSON" in status.error
+        assert "waypoint doctor" in status.error

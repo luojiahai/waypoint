@@ -115,13 +115,24 @@ class BuildResult:
 
 
 class _Unattributed:
-    """Collects identities seen in data but absent from the roster (§9)."""
+    """Collects identities seen in data but absent from the roster (§9).
 
-    def __init__(self) -> None:
+    Configured bot logins are not unrostered people, and the Sync page's
+    roster-health hint tells the user to add them to `github.bot_logins` --
+    so this is the filter that makes doing so change anything. Matching is
+    case-insensitive and GitHub-only, exactly as `store.derive` already
+    treats the same list: a Jira account id is not a GitHub login and must
+    not be silenced by one.
+    """
+
+    def __init__(self, bot_logins: Iterable[str] = ()) -> None:
         self.counts: dict[tuple[str, str, str], int] = {}
+        self.bots = {login.casefold() for login in bot_logins}
 
     def note(self, source: str, identity: str | None, kind: str) -> None:
         if not identity:
+            return
+        if source == "github" and identity.casefold() in self.bots:
             return
         key = (source, identity, kind)
         self.counts[key] = self.counts.get(key, 0) + 1
@@ -398,7 +409,7 @@ def build(root: Path, cfg: Config, *, now: datetime) -> BuildResult:
 
     store = RawStore(root)
     roster = Roster.from_config(cfg)
-    seen = _Unattributed()
+    seen = _Unattributed(cfg.github.bot_logins)
     result = BuildResult()
 
     con = connect(temporary)
