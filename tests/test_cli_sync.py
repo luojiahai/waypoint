@@ -30,3 +30,10 @@ def test_sync_reports_missing_secrets_by_variable_name(project_dir: Path, monkey
     result = runner.invoke(app, ["sync"])
     assert result.exit_code == 1
     assert "WAYPOINT_GITHUB_TOKEN" in result.stdout
+
+
+def test_doctor_exits_nonzero_when_a_check_fails(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 1
+    assert "config" in result.stdout

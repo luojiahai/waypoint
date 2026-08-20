@@ -3,8 +3,10 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 
 from waypoint.config import JiraConfig
+from waypoint.errors import SourceError
 from waypoint.sources.http import HttpClient
 from waypoint.sources.jira import JiraSource
 
@@ -214,3 +216,26 @@ def test_truncated_changelog_marks_changelogs_partial_with_issue_key():
     status = source.status()["changelogs"]
     assert status.status == "partial"
     assert "PROJ-99" in status.error
+
+
+def test_reachable_returns_true_on_a_successful_request():
+    source = make_source(lambda request: httpx.Response(200, json={"accountId": "acct-1"}))
+    assert source.reachable() is True
+
+
+def test_reachable_raises_on_auth_failure():
+    source = make_source(lambda request: httpx.Response(401, text="Unauthorized"))
+    with pytest.raises(SourceError) as excinfo:
+        source.reachable()
+    assert excinfo.value.kind == "auth"
+
+
+def test_board_configuration_readable_returns_true_when_the_endpoint_resolves():
+    assert make_source(default_handler).board_configuration_readable() is True
+
+
+def test_board_configuration_readable_raises_on_a_missing_board():
+    source = make_source(lambda request: httpx.Response(404, text="not found"))
+    with pytest.raises(SourceError) as excinfo:
+        source.board_configuration_readable()
+    assert excinfo.value.kind == "not_found"

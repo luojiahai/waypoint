@@ -118,3 +118,29 @@ def test_probe_graphql_reraises_on_auth_failure_instead_of_returning_false():
     with pytest.raises(SourceError) as excinfo:
         source.probe_graphql()
     assert excinfo.value.kind == "auth"
+
+
+def test_reachable_returns_true_on_a_successful_request():
+    source = make_source(lambda request: httpx.Response(200, json={"login": "svc-account"}))
+    assert source.reachable() is True
+
+
+def test_reachable_raises_on_auth_failure():
+    # `waypoint doctor` reports this as a named failure, not a crash — the
+    # message must survive intact for the CLI to show it.
+    source = make_source(lambda request: httpx.Response(401, text="Bad credentials"))
+    with pytest.raises(SourceError) as excinfo:
+        source.reachable()
+    assert excinfo.value.kind == "auth"
+
+
+def test_repo_readable_returns_true_when_the_repo_resolves():
+    source = make_source(lambda request: httpx.Response(200, json={"full_name": "platform/api"}))
+    assert source.repo_readable("platform/api") is True
+
+
+def test_repo_readable_raises_not_found_for_a_missing_repo():
+    source = make_source(lambda request: httpx.Response(404, text="not found"))
+    with pytest.raises(SourceError) as excinfo:
+        source.repo_readable("platform/ghost")
+    assert excinfo.value.kind == "not_found"

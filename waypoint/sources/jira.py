@@ -72,10 +72,20 @@ class JiraSource:
     def status(self) -> dict[str, EntityStatus]:
         return self._status
 
+    def reachable(self) -> bool:
+        """Basic connectivity and auth check `waypoint doctor` runs up front."""
+        self.http.get(f"{self.base}{API_PATH}/myself")
+        return True
+
     def board_type(self) -> str:
         """Used by `waypoint doctor` to reject a non-kanban board up front."""
         response = self.http.get(f"{self.base}{AGILE_PATH}/board/{self.cfg.board_id}")
         return str(response.json().get("type", ""))
+
+    def board_configuration_readable(self) -> bool:
+        """Used by `waypoint doctor` to confirm the board configuration endpoint is readable."""
+        self.http.get(f"{self.base}{AGILE_PATH}/board/{self.cfg.board_id}/configuration")
+        return True
 
     def fetch(self, since: Mapping[str, str | None]) -> Iterator[RawRecord]:
         watermark = since.get("issues")

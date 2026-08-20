@@ -66,5 +66,18 @@ def sync(directory: Path = typer.Option(None, "--dir", help="Project directory")
         typer.echo(f"  {key}: {count}")
 
 
+@app.command()
+def doctor(directory: Path = typer.Option(None, "--dir", help="Project directory")) -> None:
+    """Validate config, credentials, connectivity, and the board type."""
+    from waypoint.doctor import run_checks
+
+    checks = run_checks(directory or Path.cwd())
+    for check in checks:
+        marker = "ok  " if check.ok else "FAIL"
+        typer.echo(f"{marker} {check.name}: {check.detail}")
+    if any(not check.ok for check in checks):
+        raise typer.Exit(code=1)
+
+
 def main() -> None:
     app()

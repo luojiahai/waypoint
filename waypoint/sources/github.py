@@ -197,6 +197,20 @@ class GithubSource:
         if updated_at and (self._watermark is None or updated_at > self._watermark):
             self._watermark = updated_at
 
+    def reachable(self) -> bool:
+        """Basic connectivity and auth check `waypoint doctor` runs up front.
+
+        Distinct from `probe_graphql`: this only confirms the server answers
+        and the token is accepted, before anything asks whether GraphQL works.
+        """
+        self.http.get(f"{self.cfg.base_url}{REST_PATH}/user")
+        return True
+
+    def repo_readable(self, repo: str) -> bool:
+        """Used by `waypoint doctor` to confirm the token can read each configured repo."""
+        self.http.get(f"{self.cfg.base_url}{REST_PATH}/repos/{repo}")
+        return True
+
     def probe_graphql(self) -> bool:
         """Does this GHE version answer the fields the connector needs?
 
