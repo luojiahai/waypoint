@@ -68,19 +68,16 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
     now_iso = clock.iso(now)
     thresholds = cfg.thresholds
     items: list[Risk] = []
-    # `evaluated` counts each RULE that had a real candidate to check, not each
-    # row examined -- a `set` of rule ids naturally dedups repeated candidates
-    # for the same rule (e.g. three open PRs still count `pr_no_review` once).
-    evaluated_rules: set[str] = set()
+    evaluated = 0
 
     for row in con.execute(
         "SELECT p.id, p.title, p.url, f.review_wait_current FROM pull_requests p "
         "JOIN pr_flow f ON f.pr_id = p.id WHERE p.state = 'OPEN'"
     ):
+        evaluated += 1
         wait = row["review_wait_current"]
         if wait is None:
             continue
-        evaluated_rules.add("pr_no_review")
         days = wait / 24
         if days < thresholds.pr_review_wait_days:
             continue
@@ -101,7 +98,6 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
         "JOIN pr_reviews v ON v.pr_id = p.id "
         "WHERE p.state = 'OPEN' AND v.state = 'APPROVED' GROUP BY p.id"
     ):
-        evaluated_rules.add("pr_approved_unmerged")
         days = days_between(row["approved_at"], now_iso) or 0.0
         if days < thresholds.pr_approved_unmerged_days:
             continue
@@ -136,9 +132,7 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
         oldest_by_column.setdefault(item.column, item)
 
     for item in in_flight:
-        evaluated_rules.update(
-            {"issue_flagged", "issue_stalled", "issue_unassigned", "issue_aging", "issue_reopened"}
-        )
+        evaluated += 1
         issue = con.execute(
             "SELECT flagged, assignee_person_id, parent_key FROM jira_issues WHERE key = ?",
             (item.key,),
@@ -197,7 +191,7 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
     for column in columns.values():
         if column.no_limit:
             continue  # a column with no limit is never over limit (§11)
-        evaluated_rules.add("column_over_limit")
+        evaluated += 1
         if column.over:
             # The oldest in-flight item in this column, if one exists. A column
             # can be over its limit on the strength of issues whose status_id
@@ -229,7 +223,7 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
                 "SELECT key FROM jira_issues WHERE parent_key = ?", (epic_key,)
             )
         }]
-        evaluated_rules.add("epic_single_owner")
+        evaluated += 1
         if len(owners) == 1 and len(children) > 1:
             owner_id = next(iter(owners))
             name = con.execute(
@@ -251,11 +245,12 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
     # (§11's missing tenth rule). Task 17's `epics()` already computes
     # `projection_state` and `drift_days`; a state of "none" means no
     # projection was computable (complete, or no recent progress) so there is
-    # nothing meaningful to evaluate for drift on that row.
+    # nothing to fire here. This rule is not one of the brief's original four
+    # `evaluated` sites (it didn't exist in the brief at all), so -- per the
+    # per-item definition `evaluated` was reverted to -- it does not add to
+    # `evaluated`, matching how the brief's own `pr_approved_unmerged` loop
+    # never did either.
     for row in epics.epics(con, now=now, jira=cfg.jira).rows:
-        if row.projection_state == "none":
-            continue
-        evaluated_rules.add("epic_drift")
         if row.projection_state != "drift" or row.drift_days is None:
             continue
         drift = float(row.drift_days)
@@ -274,6 +269,6 @@ def rule_risks(con: sqlite3.Connection, cfg: Config, *, now: datetime) -> RiskRe
     items.sort(key=lambda risk: (SEVERITY_ORDER[risk.severity], -risk.age_days, risk.rule))
     return RiskRegister(
         items=items,
-        evaluated=len(evaluated_rules),
+        evaluated=evaluated,
         empty_message=None if items else "Nothing crossed a threshold.",
     )
