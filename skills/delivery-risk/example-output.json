@@ -1,0 +1,18 @@
+{
+  "skill": "waypoint:delivery-risk",
+  "generated_at": "2026-08-19T09:40:00Z",
+  "window": {"from": "2026-08-05", "to": "2026-08-19"},
+  "inputs_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "items": [
+    {
+      "severity": "high",
+      "title": "Checkout rework has no reviewer coverage",
+      "body": "PR #482 has been open 5 days with no submitted review, and PROJ-97 has not moved since 4 August.",
+      "evidence": [
+        {"type": "pull_request", "ref": "PR #482", "url": "https://ghe.corp.example.com/platform/api/pull/482"},
+        {"type": "issue", "ref": "PROJ-97", "url": "https://example.atlassian.net/browse/PROJ-97"}
+      ],
+      "question": "Who can back up Alex on the checkout rework this week?"
+    }
+  ]
+}

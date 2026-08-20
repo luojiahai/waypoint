@@ -1,0 +1,35 @@
+{
+  "skill": "waypoint:delivery-review",
+  "generated_at": "2026-08-19T09:40:00Z",
+  "window": {"from": "2026-08-05", "to": "2026-08-19"},
+  "inputs_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "items": [
+    {
+      "severity": "med",
+      "title": "PR #501 is approved and waiting on merge",
+      "body": "PR #501 (billing retry backoff) has one approval and no requested changes; it only needs a merge.",
+      "evidence": [
+        {"type": "pull_request", "ref": "PR #501", "url": "https://ghe.corp.example.com/platform/billing/pull/501"}
+      ],
+      "question": null
+    },
+    {
+      "severity": "med",
+      "title": "PROJ-112 has sat in code review for 9 days",
+      "body": "PROJ-112 entered the code review column on 10 August and has not moved since; that is past the aging threshold for this column.",
+      "evidence": [
+        {"type": "issue", "ref": "PROJ-112", "url": "https://example.atlassian.net/browse/PROJ-112"}
+      ],
+      "question": null
+    },
+    {
+      "severity": "high",
+      "title": "PROJ-88 has had no transition and no linked PR activity since 30 July",
+      "body": "PROJ-88 last changed status on 30 July and has no linked pull request, so there is no visible progress signal for it in this window.",
+      "evidence": [
+        {"type": "issue", "ref": "PROJ-88", "url": "https://example.atlassian.net/browse/PROJ-88"}
+      ],
+      "question": null
+    }
+  ]
+}

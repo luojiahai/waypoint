@@ -1,0 +1,30 @@
+{
+  "skill": "waypoint:workload-review",
+  "generated_at": "2026-08-19T09:40:00Z",
+  "window": {"from": "2026-08-05", "to": "2026-08-19"},
+  "inputs_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "items": [
+    {
+      "severity": "med",
+      "title": "Review requests for the billing area are concentrated on one reviewer",
+      "body": "PR #501, PR #503, and PR #510 each request review from the same person, and all three are still open. That is a concentration worth naming, whatever the reason for it.",
+      "evidence": [
+        {"type": "pull_request", "ref": "PR #501", "url": "https://ghe.corp.example.com/platform/billing/pull/501"},
+        {"type": "pull_request", "ref": "PR #503", "url": "https://ghe.corp.example.com/platform/billing/pull/503"},
+        {"type": "pull_request", "ref": "PR #510", "url": "https://ghe.corp.example.com/platform/billing/pull/510"}
+      ],
+      "question": null
+    },
+    {
+      "severity": "low",
+      "title": "PROJ-70's remaining in-flight children all sit with one assignee",
+      "body": "Of the three open child issues under epic PROJ-70, all three are assigned to the same person, so a delay on their side delays the whole epic.",
+      "evidence": [
+        {"type": "issue", "ref": "PROJ-70", "url": "https://example.atlassian.net/browse/PROJ-70"},
+        {"type": "issue", "ref": "PROJ-71", "url": "https://example.atlassian.net/browse/PROJ-71"},
+        {"type": "issue", "ref": "PROJ-72", "url": "https://example.atlassian.net/browse/PROJ-72"}
+      ],
+      "question": null
+    }
+  ]
+}

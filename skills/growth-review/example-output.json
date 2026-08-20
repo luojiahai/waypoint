@@ -1,0 +1,32 @@
+{
+  "skill": "waypoint:growth-review",
+  "generated_at": "2026-08-19T09:40:00Z",
+  "window": {"from": "2026-08-05", "to": "2026-08-19"},
+  "inputs_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "items": [
+    {
+      "severity": "low",
+      "title": "Feature work made up a larger share of the recent window",
+      "body": "Recent window (7 issues total): PROJ-97, PROJ-101, PROJ-104 feature; PROJ-99 bug; PROJ-103 toil. Prior window (8 issues total): PROJ-70, PROJ-71 feature; PROJ-73, PROJ-75, PROJ-77 bug; PROJ-72, PROJ-74 toil.",
+      "evidence": [
+        {"type": "issue", "ref": "PROJ-97", "url": "https://example.atlassian.net/browse/PROJ-97"},
+        {"type": "issue", "ref": "PROJ-101", "url": "https://example.atlassian.net/browse/PROJ-101"},
+        {"type": "issue", "ref": "PROJ-104", "url": "https://example.atlassian.net/browse/PROJ-104"},
+        {"type": "issue", "ref": "PROJ-70", "url": "https://example.atlassian.net/browse/PROJ-70"},
+        {"type": "issue", "ref": "PROJ-71", "url": "https://example.atlassian.net/browse/PROJ-71"}
+      ],
+      "question": "What's behind the shift toward feature work this window — is that something you chose, or how the queue happened to fall?"
+    },
+    {
+      "severity": "low",
+      "title": "Toil work dropped from three issues to one",
+      "body": "Prior window toil: PROJ-72, PROJ-74, and one further issue not shown here. Recent window toil: PROJ-103 only.",
+      "evidence": [
+        {"type": "issue", "ref": "PROJ-103", "url": "https://example.atlassian.net/browse/PROJ-103"},
+        {"type": "issue", "ref": "PROJ-72", "url": "https://example.atlassian.net/browse/PROJ-72"},
+        {"type": "issue", "ref": "PROJ-74", "url": "https://example.atlassian.net/browse/PROJ-74"}
+      ],
+      "question": "Is the drop in toil work something you'd want to keep going, or was there just less of it to do?"
+    }
+  ]
+}

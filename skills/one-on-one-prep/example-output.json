@@ -1,0 +1,35 @@
+{
+  "skill": "waypoint:one-on-one-prep",
+  "generated_at": "2026-08-19T09:40:00Z",
+  "window": {"from": "2026-08-05", "to": "2026-08-19"},
+  "inputs_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "items": [
+    {
+      "severity": "low",
+      "title": "PROJ-97 has been in progress since 4 August",
+      "body": "PROJ-97 moved to In Progress on 4 August and has not changed status since; there is no linked pull request yet.",
+      "evidence": [
+        {"type": "issue", "ref": "PROJ-97", "url": "https://example.atlassian.net/browse/PROJ-97"}
+      ],
+      "question": "What's the state of PROJ-97 — is it blocked on something, or just not started yet?"
+    },
+    {
+      "severity": "low",
+      "title": "PR #482 is open with no submitted review",
+      "body": "PR #482 was opened 5 days ago and has no submitted review yet.",
+      "evidence": [
+        {"type": "pull_request", "ref": "PR #482", "url": "https://ghe.corp.example.com/platform/api/pull/482"}
+      ],
+      "question": "Is PR #482 waiting on a specific reviewer, or does it need someone new assigned?"
+    },
+    {
+      "severity": "low",
+      "title": "PR #482 depends on a merge from another repository",
+      "body": "The description of PR #482 references a change in the platform-shared repository that has not yet merged.",
+      "evidence": [
+        {"type": "pull_request", "ref": "PR #482", "url": "https://ghe.corp.example.com/platform/api/pull/482"}
+      ],
+      "question": "What's the status of the platform-shared change PR #482 depends on?"
+    }
+  ]
+}
