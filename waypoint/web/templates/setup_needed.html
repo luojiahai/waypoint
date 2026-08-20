@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waypoint</title>
+  <link rel="stylesheet" href="/static/waypoint.css">
+</head>
+<body>
+<header class="chrome">
+  <span class="wordmark">waypoint</span>
+</header>
+<div class="band first-run">
+  {% import "components/ui.html" as ui %}
+  {{ ui.panel_open("setup needed") }}
+    <div class="prose">{{ message }}</div>
+  {{ ui.panel_close() }}
+</div>
+</body>
+</html>

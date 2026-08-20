@@ -104,3 +104,9 @@ def test_serve_command_exists():
     result = runner.invoke(cli_app, ["serve", "--help"])
     assert result.exit_code == 0
     assert "8787" in result.stdout
+
+
+def test_an_unconfigured_directory_shows_a_setup_page_instead_of_a_500(tmp_path: Path):
+    response = TestClient(create_app(tmp_path)).get("/")
+    assert response.status_code < 500
+    assert "waypoint doctor" in response.text
