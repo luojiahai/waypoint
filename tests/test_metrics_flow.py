@@ -154,3 +154,26 @@ def test_throughput_with_nothing_done_states_zero_against_zero(con, cfg):
     panel = flow.throughput(con, now=NOW, window_days=14)
     assert panel.summary == "0 done in last 14d · 0 in the 14d before"
     assert panel.spark.has_data is True
+
+
+def test_open_prs_a_zero_wait_still_reads_as_waiting(con):
+    # Regression: `0.0` and `None` are both falsy, so a naive `if wait` would
+    # render a PR that just became ready (`review_wait_current == 0.0`) as
+    # "reviewed" -- a confidently wrong claim nobody reviewed it (§4).
+    insert_pr(con, "platform/api#1", state="OPEN", url="https://ghe/pr/1")
+    con.execute(
+        "INSERT INTO pr_flow VALUES (?,?,?,?,?)",
+        ("platform/api#1", None, None, None, 0.0),
+    )
+    items = flow.open_prs(con)
+    assert items[0].review_wait_text == "0d waiting"
+
+
+def test_open_prs_an_unknown_wait_reads_as_reviewed(con):
+    insert_pr(con, "platform/api#2", state="OPEN", url="https://ghe/pr/2")
+    con.execute(
+        "INSERT INTO pr_flow VALUES (?,?,?,?,?)",
+        ("platform/api#2", None, None, None, None),
+    )
+    items = flow.open_prs(con)
+    assert items[0].review_wait_text == "reviewed"

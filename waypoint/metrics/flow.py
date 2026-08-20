@@ -191,7 +191,7 @@ def open_prs(con: sqlite3.Connection) -> list[OpenPR]:
                 id=row["id"],
                 title=row["title"] or "",
                 repo_id=row["repo_id"],
-                review_wait_text=f"{wait / 24:.0f}d waiting" if wait else "reviewed",
+                review_wait_text=f"{wait / 24:.0f}d waiting" if wait is not None else "reviewed",
                 url=row["url"] or "",
             )
         )
