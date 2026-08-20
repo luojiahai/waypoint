@@ -59,3 +59,51 @@ def test_table_format_prints_a_header(project_dir: Path):
         app, ["query", "SELECT id FROM people", "--format", "table", "--dir", str(project_dir)]
     )
     assert result.stdout.splitlines()[0].strip() == "id"
+
+
+def test_query_rejects_pragma(project_dir: Path):
+    seeded(project_dir)
+    result = runner.invoke(
+        app, ["query", "PRAGMA writable_schema=1", "--dir", str(project_dir)]
+    )
+    assert result.exit_code == 1
+
+
+def test_query_rejects_attach(project_dir: Path):
+    seeded(project_dir)
+    result = runner.invoke(
+        app,
+        ["query", "ATTACH DATABASE '/tmp/evil.db' AS evil", "--dir", str(project_dir)],
+    )
+    assert result.exit_code == 1
+
+
+def test_query_rejects_vacuum(project_dir: Path):
+    seeded(project_dir)
+    result = runner.invoke(app, ["query", "VACUUM", "--dir", str(project_dir)])
+    assert result.exit_code == 1
+
+
+def test_query_cte_write_bypasses_the_string_guard_but_readonly_connection_blocks_it(
+    project_dir: Path,
+):
+    """`WITH x AS (...) DELETE ...` starts with "with" and carries no
+    semicolon, so it slips past the CLI's string guard undetected. The real
+    backstop is that the index is opened via `index_store.connect(...,
+    read_only=True)` — a genuine `file:...?mode=ro` URI — so SQLite itself
+    refuses the write. Assert the failure is SQLite's read-only error, not the
+    guard's rejection message, and that the index file is byte-for-byte
+    unchanged: a change that tightened only the string guard (while silently
+    dropping `read_only=True`) must not be able to pass this test.
+    """
+    seeded(project_dir)
+    database = project_dir / ".waypoint" / "index.db"
+    before = database.read_bytes()
+    result = runner.invoke(
+        app,
+        ["query", "WITH x AS (SELECT 1) DELETE FROM people", "--dir", str(project_dir)],
+    )
+    assert result.exit_code == 1
+    assert "readonly database" in result.stdout
+    assert "one SELECT statement" not in result.stdout
+    assert database.read_bytes() == before

@@ -1,4 +1,45 @@
-from waypoint.fixtures import redact
+from pathlib import Path
+
+from waypoint.fixtures import capture, redact
+from waypoint.sources.base import RawRecord
+from waypoint.store.raw import RawStore
+
+
+def test_capture_writes_a_jsonl_fixture_with_no_token_anywhere_in_the_bytes(project_dir: Path):
+    """`redact` alone proves nothing if `capture` forgets to call it on some
+    path. Seed a raw record with a token-shaped key at the top level and
+    another nested inside a list of dicts, run the real `capture()` pipeline
+    (config load, RawStore.read, redact, file write), then assert on the
+    written file's actual bytes on disk -- not on `capture()`'s return value.
+    """
+    store = RawStore(project_dir / ".waypoint")
+    store.write(
+        [
+            RawRecord(
+                source="github",
+                entity="pull_requests",
+                id="platform/api#1",
+                fetched_at="2026-08-19T09:00:00Z",
+                payload={
+                    "access_token": "SECRET-TOP-LEVEL",
+                    "author": {"login": "arivera"},
+                    "reviewers": [
+                        {"login": "bchen", "Authorization": "Bearer SECRET-NESTED"},
+                    ],
+                },
+            )
+        ],
+        run_id="run-1",
+    )
+
+    out_dir = project_dir / "captured"
+    capture(project_dir, out_dir)
+
+    written = (out_dir / "github" / "pull_requests.jsonl").read_bytes().decode()
+    assert "SECRET-TOP-LEVEL" not in written
+    assert "SECRET-NESTED" not in written
+    assert "access_token" not in written
+    assert "Authorization" not in written
 
 
 def test_redact_removes_anything_token_shaped():
