@@ -89,6 +89,7 @@ nav { display: flex; gap: 16px; }
 .row .grow { flex: 1 1 auto; min-width: 0; }
 .row .right { margin-left: auto; color: var(--text-3); white-space: nowrap; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.epic-key { width: 150px; }
 
 .severity { width: 40px; flex: 0 0 40px; font-size: 10px; letter-spacing: .08em; }
 .severity.high { color: var(--high); }

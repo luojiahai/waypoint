@@ -1,3 +1,73 @@
 {% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+{% import "components/charts.html" as ch %}
 {% block content %}
+
+<div class="band">
+  {{ ui.chip("board", "#board") }} {{ ui.chip("epics", "#epics") }} {{ ui.chip("flow", "#flow") }}
+  <span class="right meta">
+    flow window:
+    {% for option in week_options %}
+      <a class="chip" href="/delivery?weeks={{ option }}">{{ option }}w</a>
+    {% endfor %}
+    <span class="chip">{{ weeks }}w selected</span>
+  </span>
+</div>
+
+<div class="band" id="board">
+  <div class="grid">
+    {{ ui.panel_open("wip by column", board_status) }}
+      {% if strip.empty_message %}{{ ui.empty(strip.empty_message) }}
+      {% else %}
+        {% for column in strip.columns %}{{ ch.wip_bar(column.bar) }}{% endfor %}
+      {% endif %}
+    {{ ui.panel_close() }}
+    {{ ui.panel_open("aging work", board_status) }}
+      {% if aging.empty_message %}{{ ui.empty(aging.empty_message) }}
+      {% else %}
+        {{ ch.aging(aging.chart) }}
+        {% for item in aging.past_threshold %}
+          {{ ui.item_row(item.key, item.summary,
+                         item.column ~ " · " ~ item.assignee_name ~ " · past aging threshold",
+                         item.age_text, item.url) }}
+        {% endfor %}
+      {% endif %}
+    {{ ui.panel_close() }}
+  </div>
+</div>
+
+<div class="band" id="epics">
+  {{ ui.panel_open("epics · " ~ epics_section.basis_label, epics_status) }}
+    {% if epics_section.empty_message %}{{ ui.empty(epics_section.empty_message) }}
+    {% else %}
+      {% for epic in epics_section.rows %}
+      <div class="row">
+        <span class="epic-key truncate">
+          {% if epic.url %}<a href="{{ epic.url }}">{{ epic.key }}</a>{% else %}{{ epic.key }}{% endif %}
+          <span class="meta-2">{{ epic.name }}</span>
+        </span>
+        <span class="grow">{{ ch.progress(epic.progress) }}</span>
+        <span class="meta">{{ epic.completion_text }} · {{ epic.activity_text }}</span>
+        <span class="right {{ 'high' if epic.projection_state == 'drift' else 'text-3' }}">
+          {{ epic.projection_text }}
+        </span>
+      </div>
+      {% endfor %}
+    {% endif %}
+  {{ ui.panel_close() }}
+</div>
+
+<div class="band" id="flow">
+  <div class="grid">
+    {% for card in flow_panels %}
+      {{ ui.panel_open(card.label, pr_status if 'review' in card.label else flow_status) }}
+        <div class="figure">{{ card.primary }}</div>
+        <div class="meta">{{ card.secondary }}</div>
+        {% if card.kind == 'bars' %}{{ ch.bar_spark(card.spark) }}
+        {% else %}{{ ch.sparkline(card.spark) }}{% endif %}
+      {{ ui.panel_close() }}
+    {% endfor %}
+  </div>
+</div>
+
 {% endblock %}
