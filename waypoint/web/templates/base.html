@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waypoint{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/waypoint.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+<header class="chrome">
+  <span class="wordmark">waypoint</span>
+  <nav>
+    <a class="nav-item{% if page == 'home' %} active{% endif %}" href="/">home</a>
+    <a class="nav-item{% if page == 'delivery' %} active{% endif %}" href="/delivery">delivery</a>
+    <a class="nav-item{% if page == 'people' %} active{% endif %}" href="/people">people</a>
+    <a class="nav-item{% if page == 'sync' %} active{% endif %}" href="/sync">sync</a>
+  </nav>
+  <span class="chrome-right">
+    <span class="sync-state {{ ctx.sync_state }}"
+          id="sync-state">{{ ctx.sync_label }}</span>
+    <button class="button primary" hx-post="/sync" hx-target="#sync-state" hx-swap="outerHTML">
+      Sync
+    </button>
+  </span>
+</header>
+{% block content %}{% endblock %}
+</body>
+</html>

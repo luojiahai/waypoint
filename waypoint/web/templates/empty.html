@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+{% block content %}
+<div class="band first-run">
+  {{ ui.panel_open("no data yet") }}
+    <div class="prose">
+      No data yet. Waypoint will show board health, a risk register, epic progress,
+      flow trends, and a page per person once it has synced.
+    </div>
+    <div class="row">
+      <button class="button primary" hx-post="/sync" hx-target="#sync-state" hx-swap="outerHTML">
+        Sync now
+      </button>
+      <span class="right">Run <code>waypoint doctor</code> first if configuration is incomplete.</span>
+    </div>
+  {{ ui.panel_close() }}
+</div>
+{% endblock %}

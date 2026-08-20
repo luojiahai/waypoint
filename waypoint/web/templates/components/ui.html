@@ -1,0 +1,45 @@
+{# Every component in UI§4. Panels are square; only badges and buttons are rounded. #}
+
+{% macro badge(word, kind) %}<span class="badge {{ kind }}">{{ word }}</span>{% endmacro %}
+
+{% macro severity(word) %}<span class="severity {{ word }}">{{ word|upper }}</span>{% endmacro %}
+
+{% macro chip(text, href=None) %}
+  {% if href %}<a class="chip" href="{{ href }}">{{ text }}</a>
+  {% else %}<span class="chip">{{ text }}</span>{% endif %}
+{% endmacro %}
+
+{% macro standing_note(text) %}<div class="standing-note">{{ text }}</div>{% endmacro %}
+
+{% macro empty(text, tone="text-3") %}<div class="{{ tone }}">{{ text }}</div>{% endmacro %}
+
+{% macro panel_open(label, status=None, right=None) %}
+<div class="panel{% if status and status.demoted %} demoted demoted-{{ status.state }}{% endif %}">
+  <div class="panel-head">
+    <span class="section-label">{{ label }}</span>
+    <span>
+      {% if right %}<span class="meta">{{ right }}</span>{% endif %}
+      {% if status and status.badge %}{{ badge(status.badge, status.state) }}{% endif %}
+    </span>
+  </div>
+  {% if status and status.reason %}
+  <div class="panel-body reason">{{ status.reason }}</div>
+  {% endif %}
+  <div class="panel-body">
+{% endmacro %}
+
+{% macro panel_close() %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro item_row(ref, title, meta, right, url=None) %}
+<div class="row">
+  <span class="grow truncate">
+    {% if url %}<a href="{{ url }}">{{ ref }}</a>{% else %}{{ ref }}{% endif %}
+    <span class="meta-2">{{ title }}</span>
+    <span class="meta">{{ meta }}</span>
+  </span>
+  <span class="right">{{ right }}</span>
+</div>
+{% endmacro %}

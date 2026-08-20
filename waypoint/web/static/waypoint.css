@@ -1,0 +1,160 @@
+/* Waypoint. An instrument panel: dense, monospaced, unadorned.
+   Colour is semantic and never decorative (UI§2). */
+
+:root {
+  --ground: #0f1216;
+  --panel: #12151a;
+  --border: #232830;
+  --border-dim: #1c2028;
+  --text: #e6eaf0;
+  --text-2: #8b93a1;
+  --text-3: #6b7280;
+  --text-4: #5a6270;
+  --ok: #7dd3a0;
+  --high: #e06c6c;
+  --med: #e0b060;
+  --stale: #6ba3d6;
+  --skill: #a98fd6;
+  --fill-ok: #3b6b4f;
+  --fill-high: #5a2f2f;
+  --fill-med: #5c4520;
+  --fill-neutral: #2a3038;
+  --unit: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Chrome ------------------------------------------------------------ */
+
+header.chrome {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.wordmark { color: var(--ok); font-weight: 600; font-size: 15px; }
+nav { display: flex; gap: 16px; }
+.nav-item { color: var(--text-2); padding-bottom: 2px; border-bottom: 1px solid transparent; }
+.nav-item.active { color: var(--text); border-bottom-color: var(--ok); }
+.chrome-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.sync-state { color: var(--text-3); }
+.sync-state.partial { color: var(--med); }
+.sync-state.failed { color: var(--high); }
+
+/* Bands and panels --------------------------------------------------- */
+
+.band { padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.grid { display: flex; gap: 12px; align-items: flex-start; }
+.grid > * { flex: 1 1 0; min-width: 0; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+
+.panel { border: 1px solid var(--border); background: var(--panel); }
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+}
+.panel-body { padding: 7px 12px; }
+
+.section-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-4);
+}
+.page-title { font-size: 15px; }
+.figure { font-size: 19px; }
+.figure-sm { font-size: 17px; }
+.meta { color: var(--text-3); }
+.meta-2 { color: var(--text-2); }
+
+.row {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 7px 0; border-bottom: 1px solid var(--border-dim);
+}
+.row:last-child { border-bottom: none; }
+.row .grow { flex: 1 1 auto; min-width: 0; }
+.row .right { margin-left: auto; color: var(--text-3); white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.severity { width: 40px; flex: 0 0 40px; font-size: 10px; letter-spacing: .08em; }
+.severity.high { color: var(--high); }
+.severity.med { color: var(--med); }
+.severity.low { color: var(--text-3); }
+
+.badge {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; color: var(--text-2);
+}
+.badge.partial { border-color: var(--med); color: var(--med); background: rgba(224,176,96,.12); }
+.badge.failed { border-color: var(--high); color: var(--high); background: rgba(224,108,108,.12); }
+.badge.stale { border-color: var(--stale); color: var(--stale); background: rgba(107,163,214,.12); }
+.badge.skill { border-color: var(--skill); color: var(--skill); background: rgba(169,143,214,.12); }
+
+.chip {
+  display: inline-block; border: 1px solid var(--border); border-radius: 10px;
+  padding: 1px 8px; font-size: 10.5px; color: var(--text-2);
+}
+
+.button {
+  border-radius: 3px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+  font-family: inherit;
+}
+.button.primary { color: var(--ok); background: #16241c; border: 1px solid #2f4a3a; }
+.button.secondary { color: var(--text-2); background: #161a20; border: 1px solid #2a3038; }
+
+.standing-note {
+  background: #161a20; border-left: 2px solid #3a424e;
+  padding: 7px 12px; font-size: 11.5px; color: var(--text-2);
+}
+
+.prose { font-size: 13.5px; line-height: 1.75; max-width: 70ch; }
+
+.ok { color: var(--ok); }
+.high { color: var(--high); }
+.med { color: var(--med); }
+.stale { color: var(--stale); }
+.skill { color: var(--skill); }
+.text-2 { color: var(--text-2); }
+.text-3 { color: var(--text-3); }
+
+.scroll-x { overflow-x: auto; }
+
+/* Demoted panels (UI§6): the figure cannot be read without registering
+   its status, so the whole panel is visually demoted. */
+
+.panel.demoted .panel-body .figure,
+.panel.demoted .panel-body .figure-sm,
+.panel.demoted .panel-body svg { opacity: .5; }
+.panel.demoted .reason { font-size: 11.5px; }
+.panel.demoted-partial { border: 1px dashed #5c4520; background: #151209; }
+.panel.demoted-partial .section-label, .panel.demoted-partial .reason { color: var(--med); }
+.panel.demoted-failed { border: 1px dashed #5a2f2f; background: #150c0c; }
+.panel.demoted-failed .section-label, .panel.demoted-failed .reason { color: var(--high); }
+.panel.demoted-stale { border: 1px dashed #2a3a4a; background: #0b1119; }
+.panel.demoted-stale .section-label, .panel.demoted-stale .reason { color: var(--stale); }
+
+/* Cards. Nothing on a card aligns with the same field on any other card,
+   and that is the point (UI§5). */
+
+.card { border: 1px solid var(--border); background: var(--panel); padding: 10px 12px; }
+.card.flagged { border-color: var(--med); }
+.card .name { font-size: 15px; }
+.card .handle { color: var(--text-3); font-size: 11px; }
+.card .line { color: var(--text-2); margin-top: 5px; }
+.card .line.med { color: var(--med); }
+
+.first-run { max-width: 520px; margin: 64px auto; }

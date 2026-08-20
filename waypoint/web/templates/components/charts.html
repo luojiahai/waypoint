@@ -1,0 +1,81 @@
+{# Inline SVG only. Every number below was computed in metrics/charts.py;
+   this file performs no arithmetic (§6). Colours come from the `charts`
+   module global (metrics/charts.py) so each hex is stated once; the one
+   exception is the track background, which has no exported constant and
+   reuses the CSS custom property --border-dim already declared in
+   waypoint.css. #}
+
+{% macro wip_bar(bar) %}
+<div>
+  <div class="meta-2">{{ bar.name }} <span class="meta">{{ bar.label }}</span></div>
+  <svg viewBox="0 0 {{ bar.track_width }} {{ bar.svg_height }}"
+       width="100%" height="{{ bar.svg_height }}" role="img"
+       aria-label="{{ bar.name }} {{ bar.label }}">
+    <rect x="0" y="2" width="{{ bar.track_width }}" height="{{ bar.track_height }}"
+          fill="var(--border-dim)"></rect>
+    <rect x="0" y="2" width="{{ bar.fill_width }}" height="{{ bar.track_height }}"
+          fill="{{ bar.fill_color }}"></rect>
+    {% if bar.tick_x is not none %}
+    <line x1="{{ bar.tick_x }}" y1="0" x2="{{ bar.tick_x }}" y2="{{ bar.svg_height }}"
+          stroke="{{ charts.TICK }}" stroke-width="1"></line>
+    {% endif %}
+  </svg>
+</div>
+{% endmacro %}
+
+{% macro sparkline(spark) %}
+{% if spark.has_data %}
+<svg viewBox="0 0 {{ spark.width }} {{ spark.height }}" width="{{ spark.width }}"
+     height="{{ spark.height }}" role="img" aria-label="trend">
+  {% if spark.p75_points %}
+  <polyline points="{{ spark.p75_points }}" fill="none" stroke="{{ charts.STROKE_P75 }}"
+            stroke-width="1.6" stroke-dasharray="3 3"></polyline>
+  {% endif %}
+  <polyline points="{{ spark.points }}" fill="none" stroke="{{ charts.STROKE_OK }}" stroke-width="1.6"></polyline>
+</svg>
+{% else %}<div class="text-3">No history yet.</div>{% endif %}
+{% endmacro %}
+
+{% macro bar_spark(spark) %}
+<svg viewBox="0 0 {{ spark.width }} {{ spark.height }}" width="{{ spark.width }}"
+     height="{{ spark.height }}" role="img" aria-label="weekly counts">
+  {% for bar in spark.bars %}
+  <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="{{ bar.height }}"
+        fill="{{ charts.FILL_OK }}"></rect>
+  {% endfor %}
+</svg>
+{% endmacro %}
+
+{% macro progress(bar) %}
+<svg viewBox="0 0 {{ bar.width }} {{ bar.height }}" width="{{ bar.width }}" height="{{ bar.height }}"
+     role="img" aria-label="completion">
+  <rect x="0" y="0" width="{{ bar.width }}" height="{{ bar.height }}" fill="var(--border-dim)"></rect>
+  <rect x="0" y="0" width="{{ bar.fill_width }}" height="{{ bar.height }}"
+        fill="{{ bar.fill_color }}"></rect>
+</svg>
+{% endmacro %}
+
+{% macro aging(chart) %}
+<div class="scroll-x">
+<svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" width="100%" height="{{ chart.height }}"
+     role="img" aria-label="in-flight items by age">
+  <line x1="{{ chart.threshold_x }}" y1="0" x2="{{ chart.threshold_x }}" y2="{{ chart.height }}"
+        stroke="{{ charts.FILL_MED }}" stroke-width="1" stroke-dasharray="4 4"></line>
+  {% for lane in chart.lanes %}
+  {% for dot in lane.dots %}
+  <circle cx="{{ dot.cx }}" cy="{{ lane.y }}" r="4" fill="{{ dot.color }}">
+    <title>{{ dot.key }} · {{ "%.0f"|format(dot.age_days) }}d</title>
+  </circle>
+  {% endfor %}
+  {% endfor %}
+</svg>
+</div>
+<div class="meta">
+  {% for lane in chart.lanes %}<span class="chip">{{ lane.label }} {{ lane.sublabel }}</span> {% endfor %}
+</div>
+<div class="meta">
+  threshold {{ chart.threshold_days }}d
+  {% for tick in chart.x_ticks %} · {{ tick[1] }}{% endfor %}
+  {% if chart.oldest_label %} · oldest {{ chart.oldest_label }}{% endif %}
+</div>
+{% endmacro %}

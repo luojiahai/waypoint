@@ -142,5 +142,24 @@ def capture_fixtures(
         typer.echo(f"wrote {path}")
 
 
+@app.command()
+def serve(
+    directory: Path = typer.Option(None, "--dir", help="Project directory"),
+    port: int = typer.Option(8787, "--port", help="Port to listen on (default 8787)"),
+    open_browser: bool = typer.Option(True, "--open/--no-open"),
+) -> None:
+    """Start the local web app."""
+    import webbrowser
+
+    import uvicorn
+
+    from waypoint.web.app import create_app
+
+    project = directory or Path.cwd()
+    if open_browser:
+        webbrowser.open(f"http://127.0.0.1:{port}/")
+    uvicorn.run(create_app(project), host="127.0.0.1", port=port, log_level="warning")
+
+
 def main() -> None:
     app()
