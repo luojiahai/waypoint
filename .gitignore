@@ -2,8 +2,6 @@
 __pycache__/
 *.pyc
 .env
-.waypoint/raw/
-.waypoint/index.db
-.waypoint/state/
+.waypoint/
 .superpowers/
 .pytest_cache/
