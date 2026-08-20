@@ -108,6 +108,22 @@ def test_wip_series_is_reconstructed_from_transitions(con, cfg):
     assert panel.spark.has_data is True
 
 
+def test_wip_series_resolves_a_retired_status_name_via_category_hints(con, cfg):
+    # "Closed" is not any issue's *current* status here (PROJ-3 now reads
+    # "Done" -- a workflow rename), so it is absent from `_category_map`'s
+    # current-status snapshot. `_wip_at` must still resolve it as Done via
+    # `derive._category_for`'s `_CATEGORY_HINTS` fallback ("closed" -> Done),
+    # not silently default it to IN_PROGRESS and inflate the WIP count.
+    insert_issue(con, "PROJ-1", status="In Progress", status_category="In Progress")
+    insert_issue(con, "PROJ-3", status="Done", status_category="Done",
+                 resolved_at="2026-08-10T09:00:00Z")
+    insert_transition(con, "PROJ-1", "2026-08-05T09:00:00Z", "In Progress")
+    insert_transition(con, "PROJ-3", "2026-08-06T09:00:00Z", "In Progress")
+    insert_transition(con, "PROJ-3", "2026-08-10T09:00:00Z", "Closed")
+    panel = flow.wip_series(con, now=NOW, weeks=4)
+    assert panel.current == 1
+
+
 def test_throughput_compares_the_trailing_window_with_the_preceding_one(con, cfg):
     for index in range(3):
         key = f"PROJ-{index}"

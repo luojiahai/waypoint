@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from waypoint import clock
 from waypoint.metrics import charts
-from waypoint.store.derive import IN_PROGRESS, _category_map
+from waypoint.store.derive import IN_PROGRESS, _category_for, _category_map
 
 
 @dataclass(frozen=True)
@@ -132,11 +132,20 @@ def issue_cycle_time(con: sqlite3.Connection, *, now: datetime, weeks: int = 12)
 
 
 def _wip_at(transitions: Sequence[sqlite3.Row], moment: str, categories: dict[str, str]) -> int:
+    """Resolve each transition's category through `derive._category_for`.
+
+    A bare `categories.get(to_value, IN_PROGRESS)` would silently miscount: a
+    status name that no issue currently occupies (a retired "Closed" after
+    everything holding it moved on, say) is absent from `categories`, which is
+    built from *current* `jira_issues` rows. `_category_for` still resolves it
+    via `_CATEGORY_HINTS` before falling back to IN_PROGRESS, so WIP isn't
+    inflated by history the current snapshot no longer carries.
+    """
     state: dict[str, str] = {}
     for transition in transitions:
         if transition["changed_at"] > moment:
             break
-        state[transition["issue_key"]] = categories.get(transition["to_value"], IN_PROGRESS)
+        state[transition["issue_key"]] = _category_for(transition["to_value"], categories)
     return sum(1 for category in state.values() if category == IN_PROGRESS)
 
 
@@ -153,7 +162,7 @@ def wip_series(con: sqlite3.Connection, *, now: datetime, weeks: int = 12) -> Wi
     current = _wip_at(transitions, clock.iso(now), categories)
     return WipPanel(
         current=current,
-        median=statistics.median(series) if series else None,
+        median=float(statistics.median(series)) if series else None,
         spark=charts.sparkline([float(value) for value in series]),
         series=series,
     )
