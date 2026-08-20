@@ -136,3 +136,54 @@ def test_a_second_post_while_running_does_not_start_another(project_dir: Path, m
     with SyncLock(project_dir / ".waypoint"):
         response = client.post("/sync")
     assert "already running" in response.text
+
+
+def test_a_lock_left_by_a_dead_process_does_not_block_a_new_sync(project_dir: Path, monkeypatch):
+    import waypoint.web.routes.sync as sync_route
+
+    def fake_run_sync(project_dir, *, now, sources=None, cfg=None):
+        # Stand in for the real sync so the background task never opens a socket.
+        return None
+
+    monkeypatch.setattr(sync_route, "run_sync", fake_run_sync)
+
+    client = seed(project_dir)
+    root = project_dir / ".waypoint"
+    (root / "state").mkdir(parents=True, exist_ok=True)
+    # A pid this high is not a real running process on the test machine — the
+    # same convention tests/test_sync.py uses for "a dead process held this".
+    (root / "state" / "sync.lock").write_text('{"pid": 999999, "started_at": "x"}')
+
+    monkeypatch.setenv("WAYPOINT_GITHUB_TOKEN", "t")
+    monkeypatch.setenv("WAYPOINT_JIRA_EMAIL", "e@example.com")
+    monkeypatch.setenv("WAYPOINT_JIRA_TOKEN", "t")
+    response = client.post("/sync")
+    assert "already running" not in response.text
+    assert "hx-get" in response.text
+    assert "/sync/status" in response.text
+
+
+def test_an_unexpected_error_in_the_background_task_reports_failed_not_running(
+    project_dir: Path, monkeypatch
+):
+    import waypoint.web.routes.sync as sync_route
+    from waypoint.sync import read_progress
+
+    def boom(project_dir, *, now, sources=None, cfg=None):
+        raise RuntimeError("boom with a fake secret abc123")
+
+    monkeypatch.setattr(sync_route, "run_sync", boom)
+
+    client = seed(project_dir)
+    monkeypatch.setenv("WAYPOINT_GITHUB_TOKEN", "t")
+    monkeypatch.setenv("WAYPOINT_JIRA_EMAIL", "e@example.com")
+    monkeypatch.setenv("WAYPOINT_JIRA_TOKEN", "t")
+    client.post("/sync")
+
+    progress = read_progress(project_dir / ".waypoint")
+    assert progress.state == "failed"
+    assert "abc123" not in progress.message
+
+    body = client.get("/sync/status").text
+    assert "hx-get" not in body
+    assert "abc123" not in body

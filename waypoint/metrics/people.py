@@ -85,6 +85,30 @@ class PersonView:
     work_mix: WorkMixView
 
 
+@dataclass(frozen=True)
+class UnattributedIdentity:
+    source: str
+    identity: str
+    kind: str
+    count: int
+
+
+def unattributed_identities(con: sqlite3.Connection) -> list[UnattributedIdentity]:
+    """Identities in the raw data that never resolved to a roster person.
+
+    Populated by the index build from source records whose author/assignee
+    could not be matched to `[[people]]` (§10). Roster-adjacent, so it lives
+    here rather than in `board` or `flow`.
+    """
+    rows = con.execute(
+        "SELECT * FROM unattributed ORDER BY count DESC, identity"
+    ).fetchall()
+    return [
+        UnattributedIdentity(row["source"], row["identity"], row["kind"], row["count"])
+        for row in rows
+    ]
+
+
 def _plural(count: int, singular: str) -> str:
     return f"{count} {singular}" if count == 1 else f"{count} {singular}s"
 

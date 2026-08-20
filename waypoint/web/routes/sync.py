@@ -6,16 +6,20 @@ status endpoint for progress. No websockets, no job queue (§6).
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from waypoint import clock
 from waypoint.config import load_secrets
 from waypoint.errors import WaypointError
-from waypoint.sync import Progress, read_progress, run_sync, write_progress
+from waypoint.metrics.people import unattributed_identities
+from waypoint.sync import Progress, lock_holder_alive, read_progress, run_sync, write_progress
 from waypoint.web.deps import PageContext, page_context, templates
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 BOT_HINT = "add to github.bot_logins, or add the person to [[people]]"
 JIRA_HINT = "add the account to [[people]]; activity is counted as unattributed until then"
@@ -35,15 +39,13 @@ def sync_page(request: Request, ctx: PageContext = Depends(page_context)) -> HTM
     if ctx.con is not None:
         unattributed = [
             {
-                "source": row["source"],
-                "identity": row["identity"],
-                "kind": row["kind"],
-                "count": row["count"],
-                "hint": BOT_HINT if row["source"] == "github" else JIRA_HINT,
+                "source": row.source,
+                "identity": row.identity,
+                "kind": row.kind,
+                "count": row.count,
+                "hint": BOT_HINT if row.source == "github" else JIRA_HINT,
             }
-            for row in ctx.con.execute(
-                "SELECT * FROM unattributed ORDER BY count DESC, identity"
-            )
+            for row in unattributed_identities(ctx.con)
         ]
     return templates.TemplateResponse(
         request,
@@ -79,8 +81,7 @@ def start_sync(
         )
         return _state_partial(request, ctx)
 
-    lock = ctx.root / "state" / "sync.lock"
-    if lock.exists():
+    if lock_holder_alive(ctx.root):
         write_progress(
             ctx.root,
             Progress(state="running", step="a sync is already running",
@@ -98,6 +99,23 @@ def start_sync(
             write_progress(
                 ctx.root,
                 Progress(state="failed", message=exc.message, finished_at=clock.iso(clock.now())),
+            )
+        except Exception:
+            # Never leave the UI stuck on "syncing" for an error we didn't
+            # anticipate. The real exception is logged server-side only —
+            # nothing about it (which could echo request/response detail)
+            # reaches progress.json or the page.
+            logger.exception("Unexpected error during background sync")
+            write_progress(
+                ctx.root,
+                Progress(
+                    state="failed",
+                    message=(
+                        "Unexpected error during sync. Check the server log, then "
+                        "press Sync to try again."
+                    ),
+                    finished_at=clock.iso(clock.now()),
+                ),
             )
 
     background.add_task(task)

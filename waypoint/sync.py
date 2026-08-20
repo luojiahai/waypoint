@@ -83,18 +83,42 @@ def _process_alive(pid: int) -> bool:
     return True
 
 
+def _lock_path(root: Path) -> Path:
+    return Path(root) / "state" / "sync.lock"
+
+
+def _lock_holder_pid(path: Path) -> int:
+    try:
+        holder = json.loads(path.read_text())
+        return int(holder.get("pid", -1))
+    except (ValueError, OSError):
+        return -1
+
+
+def lock_holder_alive(root: Path) -> bool:
+    """True only if `state/sync.lock` exists and names a process still running.
+
+    Anything that only checks `path.exists()` treats a lock left by a killed
+    process (SIGKILL, OOM, a closed laptop) as a sync that is still running,
+    forever — this is the one place that question should be answered, so
+    every caller (the route included) asks it here rather than reimplementing
+    a weaker check.
+    """
+    path = _lock_path(root)
+    if not path.exists():
+        return False
+    pid = _lock_holder_pid(path)
+    return pid > 0 and _process_alive(pid)
+
+
 class SyncLock:
     def __init__(self, root: Path) -> None:
-        self.path = Path(root) / "state" / "sync.lock"
+        self.path = _lock_path(root)
 
     def __enter__(self) -> SyncLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
-            try:
-                holder = json.loads(self.path.read_text())
-                pid = int(holder.get("pid", -1))
-            except (ValueError, OSError):
-                pid = -1
+            pid = _lock_holder_pid(self.path)
             if pid > 0 and _process_alive(pid):
                 raise WaypointError(
                     "A sync is already running. Wait for it to finish, or delete "
