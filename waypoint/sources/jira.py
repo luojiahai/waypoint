@@ -7,6 +7,23 @@ added in Jira cannot silently vanish from the dashboard.
 
 The board is kanban (§5): `/board/{id}/sprint` is never requested.
 
+Issues come from the enhanced search endpoint, `/rest/api/3/search/jql`. The old
+`/rest/api/3/search` was removed and now answers 410 (CHANGE-2046). The
+replacement pages by opaque cursor -- `nextPageToken` plus `isLast` -- and no
+longer reports a `total`, so the page loop is bounded by the cursor rather than
+by `startAt >= total`. Because the JQL orders by `updated ASC`, the newest
+`updated` seen so far is a valid resume point even when the loop stops early, so
+a short sync costs a re-fetch and never a silently skipped issue. Jira has been
+observed handing back the same token indefinitely with `isLast` never true; a
+repeated token stops the loop and reports `issues` as `partial` rather than
+spinning forever inside the sync lock.
+
+`expand=changelog` is still accepted here, so issues and their history arrive in
+one request and no separate `/changelog/bulkfetch` pass is needed. Should that
+ever stop populating, every issue would arrive with no `changelog` key at all --
+indistinguishable from an issue that never moved -- so its absence is reported
+as `partial` too.
+
 Jira's `expand=changelog` embeds only a page of history alongside `startAt` /
 `maxResults` / `total`. When `total` exceeds the number of `histories` returned,
 the changelog was truncated. Because the changelog is the sole source of cycle
@@ -64,6 +81,8 @@ class JiraSource:
         }
         self._watermark: str | None = None
         self._truncated_changelogs: list[str] = []
+        self._repeated_token: str | None = None
+        self._missing_changelogs: list[str] = []
 
     @property
     def base(self) -> str:
@@ -93,14 +112,7 @@ class JiraSource:
             yield from self._fetch_issues(watermark)
             for entity in ("issues", "changelogs"):
                 self._status[entity].watermark = self._watermark or watermark
-            if self._truncated_changelogs:
-                keys = ", ".join(self._truncated_changelogs)
-                self._status["changelogs"].status = PARTIAL
-                self._status["changelogs"].error = (
-                    f"Changelog truncated for {keys}: Jira returned fewer history "
-                    f"entries than `total` reported. Cycle time, stall detection, "
-                    f"item age, and historical WIP for these issues may be understated."
-                )
+            self._record_partials()
         except SourceError as exc:
             for entity in ("issues", "changelogs"):
                 self._status[entity].status = FAILED
@@ -113,6 +125,39 @@ class JiraSource:
             self._status["board_config"].status = FAILED
             self._status["board_config"].error = exc.message
 
+    def _record_partials(self) -> None:
+        """Turn what the page loop noticed into entity status.
+
+        Both conditions mean the same thing: something is missing, and the
+        records already yielded would otherwise look complete.
+        """
+        if self._repeated_token:
+            self._status["issues"].status = PARTIAL
+            self._status["issues"].error = (
+                "Jira handed back the same pagination token twice, so the issue "
+                "page loop was stopped rather than left to run forever. Issues "
+                "updated after the recorded watermark may not have been fetched; "
+                "re-run `waypoint sync`."
+            )
+        notes = []
+        if self._missing_changelogs:
+            keys = ", ".join(self._missing_changelogs)
+            notes.append(
+                f"No changelog was returned for {keys} despite `expand=changelog`. "
+                f"Cycle time, stall detection, item age, and historical WIP for "
+                f"these issues cannot be computed at all."
+            )
+        if self._truncated_changelogs:
+            keys = ", ".join(self._truncated_changelogs)
+            notes.append(
+                f"Changelog truncated for {keys}: Jira returned fewer history "
+                f"entries than `total` reported. Cycle time, stall detection, "
+                f"item age, and historical WIP for these issues may be understated."
+            )
+        if notes:
+            self._status["changelogs"].status = PARTIAL
+            self._status["changelogs"].error = " ".join(notes)
+
     def _jql(self, watermark: str | None) -> str:
         clauses = [f'project = "{self.cfg.project_key}"']
         if watermark:
@@ -124,38 +169,42 @@ class JiraSource:
         fields = ISSUE_FIELDS
         if self.cfg.story_points_field:
             fields = f"{fields},{self.cfg.story_points_field}"
-        start_at = 0
+        token: str | None = None
+        seen_tokens: set[str] = set()
         while True:
-            response = self.http.get(
-                f"{self.base}{API_PATH}/search",
-                params={
-                    "jql": self._jql(watermark),
-                    "expand": "changelog",
-                    "fields": fields,
-                    "startAt": start_at,
-                    "maxResults": self.page_size,
-                },
-            )
+            params: dict[str, object] = {
+                "jql": self._jql(watermark),
+                "expand": "changelog",
+                "fields": fields,
+                "maxResults": self.page_size,
+            }
+            if token:
+                params["nextPageToken"] = token
+            response = self.http.get(f"{self.base}{API_PATH}/search/jql", params=params)
             body = json_body(response, "The Jira search API")
-            issues = body.get("issues", [])
-            if not issues:
-                return
             fetched_at = clock.iso(clock.now())
-            for issue in issues:
+            for issue in body.get("issues", []):
                 key = issue["key"]
                 updated = issue.get("fields", {}).get("updated")
                 self._note_watermark(updated)
                 self._status["issues"].count += 1
                 yield RawRecord("jira", "issues", key, fetched_at, issue)
 
-                changelog = issue.get("changelog") or {"histories": []}
+                changelog = issue.get("changelog")
+                if changelog is None:
+                    self._missing_changelogs.append(key)
+                    changelog = {"histories": []}
                 self._note_changelog_truncation(key, changelog)
                 self._status["changelogs"].count += 1
                 yield RawRecord("jira", "changelogs", f"{key}:changelog", fetched_at, changelog)
 
-            start_at += len(issues)
-            if start_at >= int(body.get("total", start_at)):
+            token = body.get("nextPageToken")
+            if body.get("isLast") or not token:
                 return
+            if token in seen_tokens:
+                self._repeated_token = token
+                return
+            seen_tokens.add(token)
 
     def _note_watermark(self, updated: str | None) -> None:
         if not updated:

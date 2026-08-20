@@ -131,22 +131,25 @@ def test_watermark_is_the_newest_updated_field():
     assert source.status()["issues"].watermark == "2026-08-18T12:00:00Z"
 
 
-def test_paging_follows_start_at_until_total_is_reached():
-    calls = []
+def test_paging_follows_next_page_token_until_is_last():
+    """The enhanced search endpoint returns no `total`; the loop is bounded by
+    `nextPageToken` / `isLast` instead of by `startAt >= total`."""
+    tokens = []
 
     def handler(request):
         if "/search" in request.url.path:
-            calls.append(int(request.url.params.get("startAt")))
+            tokens.append(request.url.params.get("nextPageToken"))
             page = fixture("search_page1.json")
-            page["total"] = 4
-            page["maxResults"] = 2
-            if calls[-1] >= 2:
-                page["issues"] = []
+            if len(tokens) == 1:
+                page["nextPageToken"] = "tok-2"
+                page["isLast"] = False
+            else:
+                page["isLast"] = True
             return httpx.Response(200, json=page)
         return default_handler(request)
 
     list(make_source(handler, page_size=2).fetch({}))
-    assert calls == [0, 2]
+    assert tokens == [None, "tok-2"]
 
 
 def test_issue_failure_still_lets_board_config_through():
@@ -252,3 +255,74 @@ def test_a_non_json_two_hundred_is_recorded_as_a_failure_not_raised_raw():
         assert status.status == "failed"
         assert "not JSON" in status.error
         assert "waypoint doctor" in status.error
+
+
+def test_search_uses_the_enhanced_jql_endpoint():
+    """`/rest/api/3/search` was removed and now answers 410 (CHANGE-2046)."""
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.path)
+        return default_handler(request)
+
+    list(make_source(handler).fetch({}))
+    assert "/rest/api/3/search/jql" in seen
+    assert "/rest/api/3/search" not in seen
+
+
+def _stuck_token_handler(calls):
+    """A page that always hands back the same `nextPageToken` with `isLast` false.
+
+    Reported in the wild against the enhanced search endpoint. `isLast` is
+    forced true after ten calls so a missing guard fails this test rather than
+    hanging the suite.
+    """
+
+    def handler(request):
+        if "/search" in request.url.path:
+            calls.append(request.url.params.get("nextPageToken"))
+            page = fixture("search_page1.json")
+            page["nextPageToken"] = "stuck"
+            page["isLast"] = len(calls) >= 10
+            return httpx.Response(200, json=page)
+        return default_handler(request)
+
+    return handler
+
+
+def test_paging_stops_when_the_endpoint_repeats_a_token():
+    calls = []
+    list(make_source(_stuck_token_handler(calls), page_size=2).fetch({}))
+    assert calls == [None, "stuck"]
+
+
+def test_a_repeated_token_marks_issues_partial_rather_than_looking_complete():
+    """Bailing out of the page loop may leave issues unfetched. Reporting `ok`
+    would advance the watermark over work that was never seen -- the silent
+    incompleteness this connector exists to avoid."""
+    source = make_source(_stuck_token_handler([]), page_size=2)
+    list(source.fetch({}))
+    status = source.status()["issues"]
+    assert status.status == "partial"
+    assert "page" in status.error
+
+
+def test_an_issue_with_no_changelog_marks_changelogs_partial():
+    """If `expand=changelog` ever stops populating on the enhanced endpoint,
+    every issue arrives with no history at all. An empty `histories` list is
+    indistinguishable from an issue that genuinely never moved, so the absence
+    has to be reported rather than yielded as though it were complete."""
+
+    def handler(request):
+        if "/search" in request.url.path:
+            page = fixture("search_page1.json")
+            for issue in page["issues"]:
+                issue.pop("changelog", None)
+            return httpx.Response(200, json=page)
+        return default_handler(request)
+
+    source = make_source(handler)
+    list(source.fetch({}))
+    status = source.status()["changelogs"]
+    assert status.status == "partial"
+    assert "PROJ-97" in status.error

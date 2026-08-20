@@ -1,7 +1,5 @@
 {
-  "startAt": 0,
-  "maxResults": 2,
-  "total": 2,
+  "isLast": true,
   "issues": [
     {
       "key": "PROJ-97",

@@ -496,6 +496,14 @@ Ruling: it also corrected MY claim in item 7a that a stuck sync would block the 
 
 Ruling (adjudicating the one residual, per process — there is no second fix wave): `import pytest` at tests/test_source_github.py:5 was NOT removed, and the fix report's stated reason for keeping it — that the new non-JSON test uses pytest.raises — is FALSE; that test asserts on source.status(), not on a raised exception. Decision: PARK it. It is an unused import in a test file with no behavioural effect, and the process allows exactly one fix wave. But it must not be recorded as done, and the false rationale must not stand: I am recording it accurately as open and surfacing it to the human. Cost if wrong: one dead import line in a test module. Task/branch state: 454/454 passing. README committed separately as ee6a00a.
 
+### 113
+
+Ruling: Jira's `/rest/api/3/search` was REMOVED by Atlassian and answers 410 (CHANGE-2046), so the connector could not sync at all. Migrated to the enhanced search endpoint, `/rest/api/3/search/jql`. Three things changed and one deliberately did not. (a) Pagination is now an opaque cursor — `nextPageToken` plus `isLast` — and the response no longer carries `total`, so the page loop that terminated on `startAt >= total` is now bounded by the cursor. (b) `expand=changelog` IS still accepted on the new endpoint, which is the finding that kept this small: issues and history still arrive in one request and the `POST /rest/api/3/changelog/bulkfetch` rework Atlassian points migrators at was not needed. (c) The changelog-truncation signal from #52 is untouched, because it reads the `total` embedded in each issue's own `changelog` object, which belongs to the issue resource and not to the search envelope — two different `total` fields that the removal notice makes easy to conflate.
+
+### 114
+
+Ruling: two guards added beyond a like-for-like port, both because the migration removed the bound that made the old loop safe. First, Jira has been reported in the wild to hand back the same `nextPageToken` indefinitely with `isLast` never turning true; with `total` gone there is nothing left to stop that, and an endless loop would spin inside the sync lock with `progress.json` stuck at "running" — the exact failure #2100049 was fixed to prevent. A repeated token now stops the loop. But stopping silently would advance the watermark over issues that were never fetched, which is the silent-incompleteness this connector exists to refuse, so `issues` is reported `partial` with an actionable error. Note the JQL's `ORDER BY updated ASC` makes the newest `updated` seen a valid resume point even on a short page loop, so the cost of bailing out is a re-fetch, never a skipped issue. Second: verification here is fixture-based, not against a live site, and `expand=changelog` support on the new endpoint is documented rather than observed. If it ever stops populating, every issue arrives with NO `changelog` key, which `_note_changelog_truncation` cannot detect (it returns early on a missing `total`) and which would be yielded as `{"histories": []}` — indistinguishable from an issue that genuinely never moved, silently zeroing cycle time, stall detection, item age and historical WIP. A missing `changelog` key is therefore now reported `partial` too. Cost if wrong: two extra PARTIAL paths that should never fire in a healthy sync.
+
 ## Known open items
 
 - `tests/test_source_github.py` carries an unused `import pytest`. The final fix wave
@@ -509,3 +517,8 @@ Ruling (adjudicating the one residual, per process — there is no second fix wa
 - Roughly 70 minor findings were triaged as safe to leave: untested edge cases, weak
   assertions, cosmetic naming, and documented consequences of design choices the plan
   made. Most fail toward honesty — over-demoting a panel rather than under-demoting it.
+- The Jira migration to `/rest/api/3/search/jql` (#113/#114) is verified against fixtures
+  only, by agreement. Two documented behaviours of the new endpoint remain unobserved on a
+  live site: that `expand=changelog` genuinely populates, and that `isLast` / `nextPageToken`
+  terminate as specified. Both failure modes now surface as PARTIAL rather than as silently
+  wrong data, but the first real sync against a Jira site is what actually confirms them.
