@@ -69,15 +69,8 @@ def run_checks(project_dir: Path, *, sources: tuple | None = None) -> list[Check
     github, jira = sources or _default_sources(project_dir, cfg, secrets)
 
     try:
-        reachable = github.reachable()
-        checks.append(
-            Check(
-                "github", reachable,
-                "reachable" if reachable
-                else f"Could not reach {cfg.github.base_url}. Check network connectivity "
-                     f"and github.base_url in config.toml, then run `waypoint doctor` again.",
-            )
-        )
+        github.reachable()
+        checks.append(Check("github", True, "reachable"))
     except SourceError as exc:
         checks.append(Check("github", False, exc.message))
 
@@ -109,15 +102,8 @@ def run_checks(project_dir: Path, *, sources: tuple | None = None) -> list[Check
     )
 
     try:
-        jira_reachable = jira.reachable()
-        checks.append(
-            Check(
-                "jira", jira_reachable,
-                "reachable" if jira_reachable
-                else f"Could not reach https://{cfg.jira.site}. Check network connectivity "
-                     f"and jira.site in config.toml, then run `waypoint doctor` again.",
-            )
-        )
+        jira.reachable()
+        checks.append(Check("jira", True, "reachable"))
     except SourceError as exc:
         checks.append(Check("jira", False, exc.message))
 

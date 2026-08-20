@@ -7,17 +7,38 @@ from waypoint.doctor import Check, run_checks
 
 
 class StubGithub:
-    def __init__(self, graphql=True, reachable=True, unreadable_repos=()):
+    def __init__(self, graphql=True, reachable=True, unreadable_repos=(), graphql_auth_error=False):
         self._graphql = graphql
         self._reachable = reachable
         self._unreadable_repos = set(unreadable_repos)
+        self._graphql_auth_error = graphql_auth_error
         self.name = "github"
 
     def probe_graphql(self):
+        if self._graphql_auth_error:
+            from waypoint.errors import SourceError
+
+            raise SourceError(
+                "Authentication failed for https://ghe.corp.example.com/api/graphql. Check "
+                "WAYPOINT_GITHUB_TOKEN / WAYPOINT_JIRA_EMAIL / WAYPOINT_JIRA_TOKEN, then run "
+                "`waypoint doctor`.",
+                kind="auth",
+            )
         return self._graphql
 
     def reachable(self):
-        return self._reachable
+        # A real GithubSource.reachable() only ever returns True or raises
+        # SourceError (it never returns False) — this stub models the same
+        # contract so the doctor tests exercise a path production can take.
+        if not self._reachable:
+            from waypoint.errors import SourceError
+
+            raise SourceError(
+                "Could not reach https://ghe.corp.example.com/api/v3/user: "
+                "Connection refused",
+                kind="server",
+            )
+        return True
 
     def repo_readable(self, repo):
         if repo in self._unreadable_repos:
@@ -43,7 +64,18 @@ class StubJira:
         return self._board
 
     def reachable(self):
-        return self._reachable
+        # A real JiraSource.reachable() only ever returns True or raises
+        # SourceError (it never returns False) — this stub models the same
+        # contract so the doctor tests exercise a path production can take.
+        if not self._reachable:
+            from waypoint.errors import SourceError
+
+            raise SourceError(
+                "Could not reach https://example.atlassian.net/rest/api/3/myself: "
+                "Connection refused",
+                kind="server",
+            )
+        return True
 
     def board_configuration_readable(self):
         if not self._reachable:
@@ -129,6 +161,22 @@ def test_graphql_unavailable_is_a_warning_not_a_failure(project_dir: Path, monke
     check = results(run_checks(project_dir, sources=(StubGithub(graphql=False), StubJira())))["graphql"]
     assert check.ok is True
     assert "REST" in check.detail
+
+
+def test_graphql_auth_failure_is_reported_and_not_collapsed_to_unavailable(project_dir: Path, monkeypatch):
+    # A 401 means "fix your token", not "this GHE instance lacks GraphQL" (Task 8).
+    # probe_graphql() re-raises SourceError(kind="auth") for exactly this reason;
+    # doctor must surface that distinction, not fold it into the "unavailable,
+    # will use REST" warning.
+    monkeypatch.setenv("WAYPOINT_GITHUB_TOKEN", "t")
+    monkeypatch.setenv("WAYPOINT_JIRA_EMAIL", "e@example.com")
+    monkeypatch.setenv("WAYPOINT_JIRA_TOKEN", "t")
+    check = results(
+        run_checks(project_dir, sources=(StubGithub(graphql_auth_error=True), StubJira()))
+    )["graphql"]
+    assert check.ok is False
+    assert "WAYPOINT_GITHUB_TOKEN" in check.detail
+    assert "unavailable" not in check.detail
 
 
 def test_an_unreachable_jira_is_reported_without_a_traceback(project_dir: Path, monkeypatch):
