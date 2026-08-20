@@ -17,12 +17,12 @@
 </div>
 
 <div class="band">
-  {{ ui.panel_open("risk register", register_status, register.items|length ~ " open") }}
-    {% if register.empty_message %}
+  {{ ui.panel_open("risk register", report_status if report_status else register_status, register_items|length ~ " open") }}
+    {% if not register_items %}
       <div class="ok">{{ register.empty_message }}</div>
       <div class="meta">{{ register.evaluated }} items evaluated</div>
     {% else %}
-      {% for item in register.items %}
+      {% for item in register_items %}
       <div class="row">
         {{ ui.severity(item.severity) }}
         <span class="grow">
@@ -39,6 +39,7 @@
       </div>
       {% endfor %}
     {% endif %}
+    {% include "partials/skill_panel.html" %}
   {{ ui.panel_close() }}
 </div>
 

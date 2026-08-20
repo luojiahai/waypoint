@@ -13,10 +13,11 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
-from waypoint import clock
+from waypoint import clock, skills_runner
 from waypoint.metrics import people as people_metrics
 from waypoint.metrics.status import EVERYTHING, panel_status
 from waypoint.roster import Roster
+from waypoint.store.reports import ReportStore
 from waypoint.store.views import PersonViews
 from waypoint.web.deps import PageContext, page_context, templates
 
@@ -72,6 +73,7 @@ def person(
     view = people_metrics.person_view(
         ctx.con, person_record, now=ctx.now, since=window_start, work_mix=ctx.cfg.work_mix
     )
+    spec = skills_runner.SKILLS["one-on-one-prep"]
     return templates.TemplateResponse(
         request,
         "person.html",
@@ -81,5 +83,9 @@ def person(
             "view": view,
             "note": STANDING_NOTE,
             "status": panel_status(ctx.manifest, EVERYTHING),
+            "spec": spec,
+            "report": ReportStore(ctx.root).latest(spec.name, person_id=view.person_id),
+            "claude_present": skills_runner.claude_available(),
+            "person_query": "?person=" + view.person_id,
         },
     )

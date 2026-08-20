@@ -155,7 +155,20 @@ def test_every_risk_row_links_to_the_underlying_item(project_dir: Path):
     assert 'href="https://ghe/pr/1"' in body
 
 
-def test_home_renders_no_action_controls_of_its_own(project_dir: Path):
-    body = seed(project_dir).get("/").text
+def test_home_renders_no_action_controls_of_its_own(project_dir: Path, monkeypatch):
+    # Override 2: the Analyze button only renders when Claude Code is on
+    # PATH, so pin claude_available() rather than letting the assertion
+    # depend on whether the machine running the tests has it installed.
+    # claude_available() is called fresh per request, so one client covers
+    # both cases.
+    client = seed(project_dir)
+
+    monkeypatch.setattr("waypoint.skills_runner.claude_available", lambda runner="claude": True)
+    body = client.get("/").text
     buttons = body.count("<button")
-    assert buttons == 1  # the Sync button in the chrome, and nothing else
+    assert buttons == 2  # the Sync button in the chrome, and the Analyze button
+
+    monkeypatch.setattr("waypoint.skills_runner.claude_available", lambda runner="claude": False)
+    body = client.get("/").text
+    buttons = body.count("<button")
+    assert buttons == 1  # with Claude absent, only the Sync button remains

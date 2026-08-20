@@ -54,6 +54,34 @@ def home(request: Request, ctx: PageContext = Depends(page_context)) -> HTMLResp
     strip = board.board_strip(con, now=now)
     register = risks.rule_risks(con, ctx.cfg, now=now)
 
+    from waypoint import skills_runner
+    from waypoint.metrics.risks import Evidence, Risk
+    from waypoint.metrics.status import stale_status
+    from waypoint.store.reports import ReportStore
+
+    spec = skills_runner.SKILLS["delivery-risk"]
+    report = ReportStore(ctx.root).latest(spec.name)
+    report_status = None
+    merged = list(register.items)
+    if report is not None and not report.malformed:
+        report_status = stale_status(report.inputs_digest, ctx.manifest, report.generated_at)
+        for item in report.items:
+            merged.append(
+                Risk(
+                    rule="skill", severity=item.severity, title=item.title,
+                    detail=item.body,
+                    evidence=[
+                        Evidence(source.get("type", "item"), source.get("ref", ""),
+                                 source.get("url", ""))
+                        for source in item.evidence
+                    ],
+                    age_days=0.0, age_text="", origin="skill",
+                )
+            )
+        merged.sort(key=lambda risk: (
+            {"high": 0, "med": 1, "low": 2}[risk.severity], -risk.age_days, risk.rule
+        ))
+
     open_prs = [
         QueueItem(ref=item.id, title=item.title, meta=item.repo_id,
                   right=item.review_wait_text, url=item.url)
@@ -76,6 +104,12 @@ def home(request: Request, ctx: PageContext = Depends(page_context)) -> HTMLResp
         "throughput": flow.throughput(con, now=now),
         "register": register,
         "register_status": panel_status(ctx.manifest, EVERYTHING),
+        "register_items": merged,
+        "report": report,
+        "report_status": report_status,
+        "spec": spec,
+        "claude_present": skills_runner.claude_available(),
+        "person_query": "",
         "queues": [
             _queue("open PRs", open_prs, "No open pull requests.",
                    panel_status(ctx.manifest, GITHUB_PRS)),

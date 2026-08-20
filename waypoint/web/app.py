@@ -19,6 +19,10 @@ def create_app(project_dir: Path) -> FastAPI:
     app.state.project_dir = Path(project_dir)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+    reports_dir = Path(project_dir) / ".waypoint" / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/reports", StaticFiles(directory=str(reports_dir)), name="reports")
+
     @app.exception_handler(WaypointError)
     async def waypoint_error_handler(request: Request, exc: WaypointError) -> HTMLResponse:
         """A missing or broken config must not 500 (UI§9): name it and the fix.
@@ -30,10 +34,11 @@ def create_app(project_dir: Path) -> FastAPI:
             request, "setup_needed.html", {"message": exc.message}, status_code=200
         )
 
-    from waypoint.web.routes import delivery, home, people, sync
+    from waypoint.web.routes import analyze, delivery, home, people, sync
 
     app.include_router(home.router)
     app.include_router(delivery.router)
     app.include_router(people.router)
     app.include_router(sync.router)
+    app.include_router(analyze.router)
     return app

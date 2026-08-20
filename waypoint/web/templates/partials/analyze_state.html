@@ -1,0 +1,8 @@
+<span id="analyze-{{ state.slug }}"
+      {% if state.running %}
+      hx-get="/analyze/{{ state.slug }}/status" hx-trigger="every 3s" hx-swap="outerHTML"
+      {% endif %}>
+  {% if state.running %}<span class="meta">analyzing…</span>
+  {% elif state.message in ("done", "idle") %}<span class="meta">{{ state.message }}</span>
+  {% else %}<span class="med">{{ state.message }}</span>{% endif %}
+</span>

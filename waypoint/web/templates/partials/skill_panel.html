@@ -1,0 +1,25 @@
+{% import "components/ui.html" as ui %}
+<div class="row">
+  <span class="grow">
+    {% if report is none %}
+      <span class="meta">{{ spec.produces }}</span>
+    {% elif report.malformed %}
+      <span class="med">This report could not be read as a sidecar.</span>
+      {% if report.markdown_path %}
+      <a href="/reports/{{ report.markdown_path.name }}">{{ report.markdown_path.name }}</a>
+      {% endif %}
+    {% else %}
+      {{ ui.badge("SKILL", "skill") }}
+      <span class="meta">{{ report.skill }} · {{ report.generated_at }}</span>
+    {% endif %}
+  </span>
+  <span class="right">
+    {% if claude_present %}
+      <button class="button primary" hx-post="/analyze/{{ spec.slug }}{{ person_query }}"
+              hx-target="#analyze-{{ spec.slug }}" hx-swap="outerHTML">Analyze</button>
+      <span id="analyze-{{ spec.slug }}"></span>
+    {% else %}
+      <span class="meta">Generated analysis is unavailable — Claude Code is not installed.</span>
+    {% endif %}
+  </span>
+</div>
