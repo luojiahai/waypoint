@@ -52,6 +52,15 @@ class WipPanel:
     series: list[int]
 
 
+@dataclass(frozen=True)
+class OpenPR:
+    id: str
+    title: str
+    repo_id: str
+    review_wait_text: str
+    url: str
+
+
 def distribution(values: Sequence[float | None]) -> Distribution:
     real = sorted(v for v in values if v is not None)
     if not real:
@@ -166,6 +175,27 @@ def wip_series(con: sqlite3.Connection, *, now: datetime, weeks: int = 12) -> Wi
         spark=charts.sparkline([float(value) for value in series]),
         series=series,
     )
+
+
+def open_prs(con: sqlite3.Connection) -> list[OpenPR]:
+    """Every open PR, oldest review wait first (§10's queue-not-target reading)."""
+    items: list[OpenPR] = []
+    for row in con.execute(
+        "SELECT p.id, p.title, p.repo_id, p.url, f.review_wait_current "
+        "FROM pull_requests p LEFT JOIN pr_flow f ON f.pr_id = p.id "
+        "WHERE p.state = 'OPEN' ORDER BY f.review_wait_current DESC NULLS LAST, p.id"
+    ):
+        wait = row["review_wait_current"]
+        items.append(
+            OpenPR(
+                id=row["id"],
+                title=row["title"] or "",
+                repo_id=row["repo_id"],
+                review_wait_text=f"{wait / 24:.0f}d waiting" if wait else "reviewed",
+                url=row["url"] or "",
+            )
+        )
+    return items
 
 
 def throughput(

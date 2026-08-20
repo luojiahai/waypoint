@@ -1,3 +1,62 @@
 {% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+{% import "components/charts.html" as ch %}
 {% block content %}
+
+<div class="band">
+  {{ ui.panel_open("board", strip_status, throughput.summary) }}
+    {% if strip.empty_message %}
+      {{ ui.empty(strip.empty_message) }}
+    {% else %}
+      <div class="grid">
+        {% for column in strip.columns %}{{ ch.wip_bar(column.bar) }}{% endfor %}
+      </div>
+      <div class="meta">{{ strip.oldest_line }}</div>
+    {% endif %}
+  {{ ui.panel_close() }}
+</div>
+
+<div class="band">
+  {{ ui.panel_open("risk register", register_status, register.items|length ~ " open") }}
+    {% if register.empty_message %}
+      <div class="ok">{{ register.empty_message }}</div>
+      <div class="meta">{{ register.evaluated }} items evaluated</div>
+    {% else %}
+      {% for item in register.items %}
+      <div class="row">
+        {{ ui.severity(item.severity) }}
+        <span class="grow">
+          <div class="truncate">{{ item.title }}
+            {% if item.origin == 'skill' %}{{ ui.badge("SKILL", "skill") }}{% endif %}</div>
+          <div class="meta">{{ item.detail }}
+            {% for source in item.evidence %}
+              · {% if source.url %}<a href="{{ source.url }}">{{ source.ref }}</a>
+                {% else %}{{ source.ref }}{% endif %}
+            {% endfor %}
+          </div>
+        </span>
+        <span class="right">{{ item.age_text }}</span>
+      </div>
+      {% endfor %}
+    {% endif %}
+  {{ ui.panel_close() }}
+</div>
+
+<div class="band">
+  <div class="grid">
+    {% for queue in queues %}
+      {{ ui.panel_open(queue.label, queue.status, queue.items|length) }}
+        {% if queue.empty_message %}
+          {{ ui.empty(queue.empty_message) }}
+        {% else %}
+          {% for item in queue.shown %}
+            {{ ui.item_row(item.ref, item.title, item.meta, item.right, item.url) }}
+          {% endfor %}
+          {% if queue.more %}<div class="text-3">+ {{ queue.more }} more</div>{% endif %}
+        {% endif %}
+      {{ ui.panel_close() }}
+    {% endfor %}
+  </div>
+</div>
+
 {% endblock %}

@@ -18,6 +18,17 @@ from waypoint.store.derive import IN_PROGRESS, days_between
 
 UNMAPPED = "Unmapped"
 
+# The status-name substring that marks an issue as blocked, independent of case.
+BLOCKED_STATUS_HINT = "%block%"
+
+
+@dataclass(frozen=True)
+class BlockedIssue:
+    key: str
+    summary: str
+    status: str
+    url: str
+
 
 @dataclass(frozen=True)
 class ColumnWip:
@@ -131,6 +142,22 @@ def in_flight(con: sqlite3.Connection, *, now: datetime) -> list[InFlightItem]:
             )
         )
     return sorted(items, key=lambda item: (-item.age_days, item.key))
+
+
+def blocked_issues(con: sqlite3.Connection) -> list[BlockedIssue]:
+    return [
+        BlockedIssue(
+            key=row["key"],
+            summary=row["summary"] or "",
+            status=row["status"] or "",
+            url=row["url"] or "",
+        )
+        for row in con.execute(
+            "SELECT key, summary, status, url FROM jira_issues "
+            "WHERE flagged = 1 OR LOWER(status) LIKE ? ORDER BY key",
+            (BLOCKED_STATUS_HINT,),
+        )
+    ]
 
 
 def board_strip(con: sqlite3.Connection, *, now: datetime) -> BoardStrip:
