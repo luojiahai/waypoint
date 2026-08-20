@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from waypoint.metrics.status import (
-    BOARD, GITHUB_PRS, JIRA_ISSUES, DataStatus, panel_status, stale_status
+    BOARD, GITHUB_PRS, JIRA_ISSUES, DataStatus, OK_STATUS, panel_status, stale_status,
+    sync_label, worst_of
 )
+from waypoint import clock
 from waypoint.sources.base import EntityStatus
 from waypoint.store.manifest import ManifestStore
 
@@ -145,3 +147,56 @@ def test_unaffected_clause_still_present_for_a_single_source_group(tmp_path: Pat
     })
     status = panel_status(manifest, JIRA_ISSUES)
     assert "GitHub panels are unaffected." in status.reason
+
+
+def test_worst_of_keeps_the_most_severe_status(tmp_path: Path):
+    failed = DataStatus(state="failed", badge="FAILED", reason="jira failed")
+    partial = DataStatus(state="partial", badge="PARTIAL", reason="rate limited")
+    stale = DataStatus(state="stale", badge="STALE", reason="data changed since")
+
+    assert worst_of(failed, stale) is failed
+    assert worst_of(stale, failed) is failed
+    assert worst_of(partial, stale) is partial
+    assert worst_of(OK_STATUS, stale) is stale
+    assert worst_of(OK_STATUS, None) is OK_STATUS
+    assert worst_of() is OK_STATUS
+
+
+def test_worst_of_never_lets_a_fresh_report_erase_a_data_failure(tmp_path: Path):
+    """The bug this helper exists for: `stale_status` returns a *truthy* OK
+    dataclass when a report is fresh, so any "pick the report status if there
+    is one" rule would drop the FAILED demotion beside it."""
+    manifest = manifest_with(tmp_path, {"issues": ("jira", "failed", 0, "401 from Jira")})
+    data = panel_status(manifest, JIRA_ISSUES)
+    fresh_report = stale_status(manifest.digest(), manifest, "2026-08-19T09:40:00Z")
+
+    assert fresh_report is OK_STATUS  # truthy, and the reason the bug existed
+    assert worst_of(data, fresh_report).badge == "FAILED"
+
+
+def test_sync_label_reads_never_synced_before_any_run(tmp_path: Path):
+    label = sync_label(ManifestStore(tmp_path).load(), clock.parse("2026-08-19T12:00:00Z"))
+    assert label.text == "never synced"
+    assert label.state == "ok"
+
+
+def test_sync_label_states_carry_the_severity_that_colours_them(tmp_path: Path):
+    now = clock.parse("2026-08-19T12:00:00Z")
+    partial = manifest_with(tmp_path, {"issues": ("jira", "partial", 2, "rate limited")})
+    assert sync_label(partial, now).state == "partial"
+    assert "last sync partial" in sync_label(partial, now).text
+
+    failed = manifest_with(tmp_path, {"issues": ("jira", "failed", 0, "401")})
+    assert sync_label(failed, now).state == "failed"
+    assert "last sync failed" in sync_label(failed, now).text
+
+
+def test_sync_label_counts_elapsed_time_in_hours_then_minutes(tmp_path: Path):
+    manifest = manifest_with(tmp_path, {"issues": ("jira", "ok", 3, None)})
+    # manifest_with stamps every run at 2026-08-19T09:12:03Z.
+    assert sync_label(manifest, clock.parse("2026-08-19T12:12:03Z")).text == (
+        "synced 09:12 · 3h ago"
+    )
+    assert sync_label(manifest, clock.parse("2026-08-19T09:42:03Z")).text == (
+        "synced 09:12 · 30m ago"
+    )

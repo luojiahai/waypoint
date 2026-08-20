@@ -17,7 +17,7 @@
 </div>
 
 <div class="band">
-  {{ ui.panel_open("risk register", report_status if report_status else register_status, register_items|length ~ " open") }}
+  {{ ui.panel_open("risk register", register_status, register_items|length ~ " open") }}
     {% if not register_items %}
       <div class="ok">{{ register.empty_message }}</div>
       <div class="meta">{{ register.evaluated }} items evaluated</div>

@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -172,3 +173,82 @@ def test_home_renders_no_action_controls_of_its_own(project_dir: Path, monkeypat
     body = client.get("/").text
     buttons = body.count("<button")
     assert buttons == 1  # with Claude absent, only the Sync button remains
+
+
+def _write_delivery_risk_report(root: Path, *, digest: str) -> None:
+    """A well-formed delivery-risk sidecar, stamped with `digest` as its inputs."""
+    from datetime import UTC, datetime
+
+    from waypoint.store.reports import ReportStore
+
+    ReportStore(root).write(
+        "waypoint:delivery-risk",
+        {
+            "skill": "waypoint:delivery-risk",
+            "generated_at": "2026-08-19T09:40:00Z",
+            "window": {"from": "2026-08-05", "to": "2026-08-19"},
+            "inputs_digest": digest,
+            "items": [
+                {
+                    "severity": "high",
+                    "title": "Checkout rework has no reviewer coverage",
+                    "body": "Only Alex has touched it.",
+                    "evidence": [{"type": "pull_request", "ref": "PR #1", "url": "https://ghe/pr/1"}],
+                }
+            ],
+        },
+        "# risks\n",
+        at=datetime(2026, 8, 19, 9, 40, tzinfo=UTC),
+    )
+
+
+def panel_html(body: str, label: str) -> str:
+    """The one panel whose section label is `label`, up to the start of its body.
+
+    Asserting on the whole page cannot tell the register's badge from the board
+    panel's badge beside it -- and on this page both read the same entities, so
+    a page-wide `"FAILED" in body` passes even when the register is undemoted.
+    """
+    at = body.index(f'<span class="section-label">{label}</span>')
+    start = max(m.start() for m in re.finditer(r'<div class="panel[ "]', body) if m.start() < at)
+    return body[start : body.index('<div class="panel-body">', at)]
+
+
+def test_a_fresh_report_does_not_un_demote_a_failed_register(project_dir: Path):
+    """`stale_status` returns a truthy OK dataclass for a fresh report, so a
+    "report status if there is one" rule would throw the FAILED badge and its
+    reason away exactly when the register is least trustworthy (§4)."""
+    root = project_dir / ".waypoint"
+    client = seed(project_dir)
+    store = ManifestStore(root)
+    manifest = store.load()
+    manifest.record("jira", {
+        "issues": EntityStatus("issues", "failed", 0, error="401 from Jira"),
+        "changelogs": EntityStatus("changelogs", "failed", 0, error="401 from Jira"),
+        "board_config": EntityStatus("board_config", "ok", 1),
+    }, "r2", "2026-08-19T09:30:00Z")
+    store.save(manifest)
+
+    register = panel_html(client.get("/").text, "risk register")
+    assert "demoted-failed" in register
+    assert "FAILED" in register
+
+    _write_delivery_risk_report(root, digest=manifest.digest())
+    body = client.get("/").text
+    assert "SKILL" in body  # the fresh report really is being read
+    register = panel_html(body, "risk register")
+    assert "demoted-failed" in register
+    assert "FAILED" in register
+    assert "401 from Jira" in register
+
+
+def test_a_report_whose_digest_moved_on_still_reads_as_stale(project_dir: Path):
+    """Task 29's behaviour: with the manifest otherwise ok, a report generated
+    against different inputs demotes the register to STALE."""
+    root = project_dir / ".waypoint"
+    client = seed(project_dir)
+    _write_delivery_risk_report(root, digest="sha256:something-else")
+    register = panel_html(client.get("/").text, "risk register")
+    assert "STALE" in register
+    assert "demoted-stale" in register
+    assert "changed since" in register

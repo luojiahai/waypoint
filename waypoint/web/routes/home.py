@@ -8,7 +8,14 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from waypoint.metrics import board, flow, risks
-from waypoint.metrics.status import BOARD, GITHUB_PRS, JIRA_ISSUES, EVERYTHING, panel_status
+from waypoint.metrics.status import (
+    BOARD,
+    EVERYTHING,
+    GITHUB_PRS,
+    JIRA_ISSUES,
+    panel_status,
+    worst_of,
+)
 from waypoint.web.deps import PageContext, page_context, templates
 
 router = APIRouter()
@@ -88,10 +95,14 @@ def home(request: Request, ctx: PageContext = Depends(page_context)) -> HTMLResp
         "strip_status": panel_status(ctx.manifest, BOARD),
         "throughput": flow.throughput(con, now=now),
         "register": register,
-        "register_status": panel_status(ctx.manifest, EVERYTHING),
+        # The register can be degraded twice over -- an entity that did not
+        # arrive, and a report predating the current sync -- and the template
+        # gets one already-decided status, because picking the truthier of two
+        # here would silently un-demote a FAILED panel the moment a fresh
+        # report existed (§4).
+        "register_status": worst_of(panel_status(ctx.manifest, EVERYTHING), report_status),
         "register_items": merged,
         "report": report,
-        "report_status": report_status,
         "spec": spec,
         "claude_present": skills_runner.claude_available(),
         "person_query": "",

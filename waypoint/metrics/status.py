@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
+
+from waypoint import clock
 
 if TYPE_CHECKING:
     from waypoint.store.manifest import Manifest
@@ -19,6 +22,13 @@ GITHUB_PRS = ("github/pull_requests", "github/reviews", "github/review_requests"
 JIRA_ISSUES = ("jira/issues", "jira/changelogs")
 BOARD = ("jira/board_config", "jira/issues")
 EVERYTHING = GITHUB_PRS + JIRA_ISSUES + ("jira/board_config",)
+
+# The badge vocabulary, ordered by severity. `ok`/`partial`/`failed` are the
+# manifest's own statuses in the manifest's own order (store.manifest.RANK);
+# `stale` is the one state that exists only here, and sits just above `ok`
+# because a report predating the current sync is a freshness problem, not a
+# hole in the data (UI§6).
+SEVERITY = {"ok": 0, "stale": 1, "partial": 2, "failed": 3}
 
 _UNAFFECTED = {
     "github": "Jira panels are unaffected.",
@@ -38,6 +48,21 @@ class DataStatus:
 
 
 OK_STATUS = DataStatus(state="ok")
+
+
+def worst_of(*statuses: "DataStatus | None") -> DataStatus:
+    """The most severe of the statuses given.
+
+    A panel can be degraded for more than one reason at once -- the risk
+    register reads every entity *and* carries a skill report -- and only the
+    worst of them may be shown, because a demotion that loses to a milder one
+    silently un-demotes the panel (§4). `None` means "nothing to say".
+    """
+    worst = OK_STATUS
+    for status in statuses:
+        if status is not None and SEVERITY[status.state] > SEVERITY[worst.state]:
+            worst = status
+    return worst
 
 
 def _sources(entities: Sequence[str]) -> list[str]:
@@ -108,3 +133,32 @@ def stale_status(inputs_digest: str, manifest: "Manifest", generated_at: str) ->
         badge="STALE",
         reason=f"Generated {generated_at}; the underlying data has changed since.",
     )
+
+
+@dataclass(frozen=True)
+class SyncLabel:
+    """The chrome's freshness line: the words, and the severity that colours them."""
+
+    text: str
+    state: str
+
+
+def sync_label(manifest: "Manifest", now: datetime) -> SyncLabel:
+    """When the last sync ran and how it went, as one already-worded line (UI§5).
+
+    The elapsed-time arithmetic lives here rather than in `web/` because the
+    result is text the user reads, and the web layer renders and never
+    computes (§6).
+    """
+    run = manifest.last_run()
+    if run is None or run.finished_at is None:
+        return SyncLabel("never synced", "ok")
+    stamp = clock.parse(run.finished_at)
+    clock_text = stamp.strftime("%H:%M")
+    if run.status == "failed":
+        return SyncLabel(f"last sync failed · {clock_text}", "failed")
+    if run.status == "partial":
+        return SyncLabel(f"last sync partial · {clock_text}", "partial")
+    hours = (now - stamp).total_seconds() / 3600
+    ago = f"{hours:.0f}h ago" if hours >= 1 else f"{hours * 60:.0f}m ago"
+    return SyncLabel(f"synced {clock_text} · {ago}", "ok")

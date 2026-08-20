@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from waypoint import clock
 from waypoint.config import Config, load_config
 from waypoint.metrics import charts
+from waypoint.metrics import status as status_metrics
 from waypoint.store import index as index_store
 from waypoint.store.manifest import Manifest, ManifestStore
 from waypoint.sync import Progress, read_progress
@@ -40,21 +41,6 @@ class PageContext:
     progress: Progress | None = None
 
 
-def _sync_label(manifest: Manifest, now: datetime) -> tuple[str, str]:
-    run = manifest.last_run()
-    if run is None or run.finished_at is None:
-        return "never synced", ""
-    stamp = clock.parse(run.finished_at)
-    clock_text = stamp.strftime("%H:%M")
-    if run.status == "failed":
-        return f"last sync failed · {clock_text}", "failed"
-    if run.status == "partial":
-        return f"last sync partial · {clock_text}", "partial"
-    hours = (now - stamp).total_seconds() / 3600
-    ago = f"{hours:.0f}h ago" if hours >= 1 else f"{hours * 60:.0f}m ago"
-    return f"synced {clock_text} · {ago}", ""
-
-
 def page_context(request: Request) -> PageContext:
     project_dir: Path = request.app.state.project_dir
     root = project_dir / ".waypoint"
@@ -63,7 +49,7 @@ def page_context(request: Request) -> PageContext:
     database = root / "index.db"
     con = index_store.connect(database, read_only=True) if database.exists() else None
     now = clock.now()
-    label, state = _sync_label(manifest, now)
+    label = status_metrics.sync_label(manifest, now)
     progress_path = root / "state" / "progress.json"
     progress = read_progress(root) if progress_path.exists() else None
     return PageContext(
@@ -74,7 +60,7 @@ def page_context(request: Request) -> PageContext:
         con=con,
         now=now,
         synced=con is not None and manifest.last_run() is not None,
-        sync_label=label,
-        sync_state=state,
+        sync_label=label.text,
+        sync_state=label.state,
         progress=progress,
     )
