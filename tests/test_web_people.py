@@ -9,7 +9,7 @@ from waypoint.web.app import create_app
 from tests.factories import insert_issue, insert_person, insert_pr, insert_repo, make_db
 
 
-def seed(project_dir: Path):
+def seed(project_dir: Path, *, github_statuses=None, jira_statuses=None):
     root = project_dir / ".waypoint"
     con = make_db(root)
     insert_person(con, "alex-rivera", "Alex Rivera", github_login="arivera",
@@ -26,12 +26,14 @@ def seed(project_dir: Path):
     con.close()
     store = ManifestStore(root)
     manifest = store.load()
-    for source, entities in (
-        ("github", ("pull_requests", "reviews", "review_requests")),
-        ("jira", ("issues", "changelogs", "board_config")),
-    ):
-        manifest.record(source, {e: EntityStatus(e, "ok", 1) for e in entities},
-                        "r1", "2026-08-19T09:12:03Z")
+    defaults = {
+        "github": ("pull_requests", "reviews", "review_requests"),
+        "jira": ("issues", "changelogs", "board_config"),
+    }
+    overrides = {"github": github_statuses, "jira": jira_statuses}
+    for source, entities in defaults.items():
+        statuses = overrides[source] or {e: EntityStatus(e, "ok", 1) for e in entities}
+        manifest.record(source, statuses, "r1", "2026-08-19T09:12:03Z")
     store.save(manifest)
     return TestClient(create_app(project_dir))
 
@@ -114,3 +116,29 @@ def test_an_inactive_window_states_it_rather_than_rendering_zeroes(project_dir: 
 
 def test_an_unknown_person_is_a_404(project_dir: Path):
     assert seed(project_dir).get("/people/nobody").status_code == 404
+
+
+def test_a_demoted_manifest_shows_an_indicator_on_the_roster(project_dir: Path):
+    client = seed(project_dir, jira_statuses={
+        "issues": EntityStatus("issues", "partial", 2, error="rate limited"),
+        "changelogs": EntityStatus("changelogs", "ok", 1),
+        "board_config": EntityStatus("board_config", "ok", 1),
+    })
+    body = client.get("/people").text
+    assert "PARTIAL" in body
+    assert "demoted-partial" in body
+    assert "rate limited" in body
+
+
+def test_a_malformed_since_falls_back_to_the_default_window(project_dir: Path):
+    response = seed(project_dir).get("/people/alex-rivera?since=not-a-date")
+    assert response.status_code == 200
+    assert "Alex Rivera" in response.text
+    assert "arivera" in response.text
+
+
+def test_an_empty_since_falls_back_to_the_default_window(project_dir: Path):
+    response = seed(project_dir).get("/people/alex-rivera?since=")
+    assert response.status_code == 200
+    assert "Alex Rivera" in response.text
+    assert "arivera" in response.text

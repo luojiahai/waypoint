@@ -59,10 +59,14 @@ def person(
         return templates.TemplateResponse(request, "empty.html", {"ctx": ctx, "page": "people"})
 
     views = PersonViews(ctx.root)
+    default_window = views.last_viewed(person_id) or (ctx.now - timedelta(days=14))
     if since:
-        window_start = clock.parse(since + "T00:00:00Z")
+        try:
+            window_start = clock.parse(since + "T00:00:00Z")
+        except ValueError:
+            window_start = default_window
     else:
-        window_start = views.last_viewed(person_id) or (ctx.now - timedelta(days=14))
+        window_start = default_window
     views.record(person_id, ctx.now)
 
     view = people_metrics.person_view(
