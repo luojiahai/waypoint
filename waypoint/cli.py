@@ -79,5 +79,68 @@ def doctor(directory: Path = typer.Option(None, "--dir", help="Project directory
         raise typer.Exit(code=1)
 
 
+@app.command()
+def query(
+    sql: str,
+    directory: Path = typer.Option(None, "--dir", help="Project directory"),
+    output: str = typer.Option("json", "--format", help="json or table"),
+) -> None:
+    """Read-only query against the index. This is how skills read data."""
+    import json as json_module
+    import sqlite3
+
+    project = directory or Path.cwd()
+    database = _root(project) / "index.db"
+    if not database.exists():
+        typer.echo("No index yet. Run `waypoint sync` first.")
+        raise typer.Exit(code=1)
+
+    stripped = sql.strip().rstrip(";")
+    if ";" in stripped or not stripped.lower().startswith(("select", "with")):
+        typer.echo("`waypoint query` is read-only: one SELECT statement, no semicolons.")
+        raise typer.Exit(code=1)
+
+    con = index_store.connect(database, read_only=True)
+    try:
+        rows = [dict(row) for row in con.execute(stripped)]
+    except sqlite3.Error as exc:
+        typer.echo(f"SQL error: {exc}")
+        raise typer.Exit(code=1)
+    finally:
+        con.close()
+
+    if output == "table":
+        if rows:
+            headers = list(rows[0])
+            typer.echo("  ".join(headers))
+            for row in rows:
+                typer.echo("  ".join(str(row[key]) for key in headers))
+    else:
+        typer.echo(json_module.dumps(rows, indent=2, default=str))
+
+
+@app.command("capture-fixtures")
+def capture_fixtures(
+    out: Path = typer.Option(Path("tests/fixtures"), "--out"),
+    directory: Path = typer.Option(None, "--dir", help="Project directory"),
+    limit: int = typer.Option(5, "--limit"),
+) -> None:
+    """Capture redacted raw payloads from a live instance for operators to inspect.
+
+    Not the source of the connector tests' fixtures — those are hand-written
+    per-API-page JSON checked in under tests/fixtures/{github,jira}. This
+    writes per-entity JSONL snapshots instead, for grabbing real, redacted
+    data to look at, not for replay in the connector test suite.
+    """
+    from waypoint.fixtures import capture
+
+    try:
+        written = capture(directory or Path.cwd(), out, limit=limit)
+    except WaypointError as exc:
+        _fail(exc)
+    for path in written:
+        typer.echo(f"wrote {path}")
+
+
 def main() -> None:
     app()
