@@ -81,3 +81,21 @@ def test_people_skill_examples_emit_questions(slug: str):
 def test_no_skill_asks_for_sprints():
     for path in SKILLS_DIR.rglob("SKILL.md"):
         assert "sprint" not in path.read_text().lower()
+
+
+ISSUE_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b")
+PR_REF_RE = re.compile(r"PR #\d+")
+
+
+@pytest.mark.parametrize("slug", sorted(skills_runner.SKILLS))
+def test_example_item_evidence_covers_every_reference_named_in_prose(slug: str):
+    """The example is the reference document a model imitates: an issue or PR
+    named in an item's title/body without a matching evidence entry teaches
+    exactly the unevidenced-claim behaviour the grounding rule forbids."""
+    data = json.loads((SKILLS_DIR / slug / "example-output.json").read_text())
+    for item in data["items"]:
+        text = f"{item['title']} {item['body']}"
+        cited = set(ISSUE_KEY_RE.findall(text)) | set(PR_REF_RE.findall(text))
+        evidenced = {source["ref"] for source in item["evidence"]}
+        missing = cited - evidenced
+        assert not missing, f"{slug}: cited in prose but not evidenced: {missing}"

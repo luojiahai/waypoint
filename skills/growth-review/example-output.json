@@ -7,24 +7,32 @@
     {
       "severity": "low",
       "title": "Feature work made up a larger share of the recent window",
-      "body": "Recent window (7 issues total): PROJ-97, PROJ-101, PROJ-104 feature; PROJ-99 bug; PROJ-103 toil. Prior window (8 issues total): PROJ-70, PROJ-71 feature; PROJ-73, PROJ-75, PROJ-77 bug; PROJ-72, PROJ-74 toil.",
+      "body": "Recent window (5 issues total): PROJ-201, PROJ-202, PROJ-203 feature; PROJ-204 bug; PROJ-205 toil. Prior window (7 issues total): PROJ-190, PROJ-191 feature; PROJ-192, PROJ-193 bug; PROJ-194, PROJ-195, PROJ-196 toil.",
       "evidence": [
-        {"type": "issue", "ref": "PROJ-97", "url": "https://example.atlassian.net/browse/PROJ-97"},
-        {"type": "issue", "ref": "PROJ-101", "url": "https://example.atlassian.net/browse/PROJ-101"},
-        {"type": "issue", "ref": "PROJ-104", "url": "https://example.atlassian.net/browse/PROJ-104"},
-        {"type": "issue", "ref": "PROJ-70", "url": "https://example.atlassian.net/browse/PROJ-70"},
-        {"type": "issue", "ref": "PROJ-71", "url": "https://example.atlassian.net/browse/PROJ-71"}
+        {"type": "issue", "ref": "PROJ-201", "url": "https://example.atlassian.net/browse/PROJ-201"},
+        {"type": "issue", "ref": "PROJ-202", "url": "https://example.atlassian.net/browse/PROJ-202"},
+        {"type": "issue", "ref": "PROJ-203", "url": "https://example.atlassian.net/browse/PROJ-203"},
+        {"type": "issue", "ref": "PROJ-204", "url": "https://example.atlassian.net/browse/PROJ-204"},
+        {"type": "issue", "ref": "PROJ-205", "url": "https://example.atlassian.net/browse/PROJ-205"},
+        {"type": "issue", "ref": "PROJ-190", "url": "https://example.atlassian.net/browse/PROJ-190"},
+        {"type": "issue", "ref": "PROJ-191", "url": "https://example.atlassian.net/browse/PROJ-191"},
+        {"type": "issue", "ref": "PROJ-192", "url": "https://example.atlassian.net/browse/PROJ-192"},
+        {"type": "issue", "ref": "PROJ-193", "url": "https://example.atlassian.net/browse/PROJ-193"},
+        {"type": "issue", "ref": "PROJ-194", "url": "https://example.atlassian.net/browse/PROJ-194"},
+        {"type": "issue", "ref": "PROJ-195", "url": "https://example.atlassian.net/browse/PROJ-195"},
+        {"type": "issue", "ref": "PROJ-196", "url": "https://example.atlassian.net/browse/PROJ-196"}
       ],
       "question": "What's behind the shift toward feature work this window — is that something you chose, or how the queue happened to fall?"
     },
     {
       "severity": "low",
       "title": "Toil work dropped from three issues to one",
-      "body": "Prior window toil: PROJ-72, PROJ-74, and one further issue not shown here. Recent window toil: PROJ-103 only.",
+      "body": "Prior window toil: PROJ-194, PROJ-195, PROJ-196. Recent window toil: PROJ-205 only.",
       "evidence": [
-        {"type": "issue", "ref": "PROJ-103", "url": "https://example.atlassian.net/browse/PROJ-103"},
-        {"type": "issue", "ref": "PROJ-72", "url": "https://example.atlassian.net/browse/PROJ-72"},
-        {"type": "issue", "ref": "PROJ-74", "url": "https://example.atlassian.net/browse/PROJ-74"}
+        {"type": "issue", "ref": "PROJ-205", "url": "https://example.atlassian.net/browse/PROJ-205"},
+        {"type": "issue", "ref": "PROJ-194", "url": "https://example.atlassian.net/browse/PROJ-194"},
+        {"type": "issue", "ref": "PROJ-195", "url": "https://example.atlassian.net/browse/PROJ-195"},
+        {"type": "issue", "ref": "PROJ-196", "url": "https://example.atlassian.net/browse/PROJ-196"}
       ],
       "question": "Is the drop in toil work something you'd want to keep going, or was there just less of it to do?"
     }

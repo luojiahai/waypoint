@@ -22,7 +22,8 @@
       "evidence": [
         {"type": "issue", "ref": "PROJ-70", "url": "https://example.atlassian.net/browse/PROJ-70"},
         {"type": "issue", "ref": "PROJ-71", "url": "https://example.atlassian.net/browse/PROJ-71"},
-        {"type": "issue", "ref": "PROJ-72", "url": "https://example.atlassian.net/browse/PROJ-72"}
+        {"type": "issue", "ref": "PROJ-72", "url": "https://example.atlassian.net/browse/PROJ-72"},
+        {"type": "issue", "ref": "PROJ-73", "url": "https://example.atlassian.net/browse/PROJ-73"}
       ],
       "question": null
     }
