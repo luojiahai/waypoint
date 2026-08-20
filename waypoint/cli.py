@@ -100,9 +100,19 @@ def query(
         typer.echo("`waypoint query` is read-only: one SELECT statement, no semicolons.")
         raise typer.Exit(code=1)
 
+    if output not in ("json", "table"):
+        typer.echo(f"Unknown --format {output!r}. Use `json` (the default) or `table`.")
+        raise typer.Exit(code=1)
+
     con = index_store.connect(database, read_only=True)
     try:
-        rows = [dict(row) for row in con.execute(stripped)]
+        cursor = con.execute(stripped)
+        # Taken from the cursor, not from the first row: on zero rows there is
+        # no first row, and this is the only data access the skills have -- a
+        # silent empty response is indistinguishable from a crash, which would
+        # undermine the grounding rule the skills rest on (§13).
+        headers = [column[0] for column in cursor.description or ()]
+        rows = [dict(row) for row in cursor]
     except sqlite3.Error as exc:
         typer.echo(f"SQL error: {exc}")
         raise typer.Exit(code=1)
@@ -110,11 +120,11 @@ def query(
         con.close()
 
     if output == "table":
-        if rows:
-            headers = list(rows[0])
-            typer.echo("  ".join(headers))
-            for row in rows:
-                typer.echo("  ".join(str(row[key]) for key in headers))
+        typer.echo("  ".join(headers))
+        for row in rows:
+            typer.echo("  ".join(str(row[key]) for key in headers))
+        if not rows:
+            typer.echo("0 rows")
     else:
         typer.echo(json_module.dumps(rows, indent=2, default=str))
 

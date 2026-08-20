@@ -107,3 +107,37 @@ def test_query_cte_write_bypasses_the_string_guard_but_readonly_connection_block
     assert "readonly database" in result.stdout
     assert "one SELECT statement" not in result.stdout
     assert database.read_bytes() == before
+
+
+def test_table_format_still_prints_the_header_when_nothing_matched(project_dir: Path):
+    """`waypoint query` is the only data access the five skills have, so a
+    completely silent response is indistinguishable from a crash and would
+    undermine the grounding rule they rest on (§13)."""
+    seeded(project_dir)
+    result = runner.invoke(
+        app,
+        ["query", "SELECT id FROM people WHERE id = 'nobody'", "--format", "table",
+         "--dir", str(project_dir)],
+    )
+    assert result.exit_code == 0
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    assert lines == ["id", "0 rows"]
+
+
+def test_json_format_is_still_an_empty_array_on_zero_rows(project_dir: Path):
+    seeded(project_dir)
+    result = runner.invoke(
+        app, ["query", "SELECT id FROM people WHERE id = 'nobody'", "--dir", str(project_dir)]
+    )
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == []
+
+
+def test_an_unrecognised_format_says_so_instead_of_quietly_emitting_json(project_dir: Path):
+    seeded(project_dir)
+    result = runner.invoke(
+        app, ["query", "SELECT id FROM people", "--format", "tabel", "--dir", str(project_dir)]
+    )
+    assert result.exit_code == 1
+    assert "tabel" in result.stdout
+    assert "json" in result.stdout and "table" in result.stdout
