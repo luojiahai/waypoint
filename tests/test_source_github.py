@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import httpx
-import pytest
 
 from waypoint.config import GithubConfig
 from waypoint.sources.github import GithubSource
